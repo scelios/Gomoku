@@ -1,0 +1,22 @@
+Create docker for the app [X]
+
+Create plan for the project
+
+Create unitest macrotest and end to end test
+
+Create the min-max algo
+ - move-suggestion feature (Mandatory)
+ - 10 depth for the bonus
+ - timer that counts how much time your AI takes to find its next move.
+Create the gomoku game
+Create the user interface
+ - graphical interface library [X]
+
+Put it online?
+
+
+Bonus:
+ - Multiple starting condition
+ - Pleasing interface
+ - Online
+ - Connect to a llm for roasting the player
