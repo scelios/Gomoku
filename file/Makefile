@@ -31,6 +31,7 @@ clean:
 
 fclean: clean
 	@rm -f $(NAME)
+	@cmake --build $(LIBMLX)/build --target clean
 	@printf "Removed executable: $(NAME).\n"
 
 re: fclean all

@@ -12,9 +12,9 @@ services:
     networks:
       - gomok
     working_dir: /usr/app
-    command: ["tail", "-f", "/dev/null"]
+    # command: ["tail", "-f", "/dev/null"]
     # command: make all
-    # command: ["make", "&&", "./gomoku"]
+    command: ["sh", "-c", "make all && ./gomoku"]
 
 
 networks:

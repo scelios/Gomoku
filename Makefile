@@ -19,7 +19,7 @@ RESET="\033[m"
 
 .PHONY: all
 all	:
-	docker compose up --build -d && docker exec -it gomoku ./gomoku 
+	docker compose up --build -d 
 
 .PHONY: clean
 clean	:
@@ -31,6 +31,7 @@ prune	: clean
 
 .PHONY: fclean
 fclean	: clean
+	@make -C ./file fclean
 	-docker stop $(shell docker ps -qa) 2>/dev/null
 	-docker rm $(shell docker ps -qa) 2>/dev/null
 	-docker rmi -f $(shell docker images -qa) 2>/dev/null
