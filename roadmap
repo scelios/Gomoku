@@ -7,7 +7,7 @@ Create unitest macrotest and end to end test
 Create the min-max algo
  - move-suggestion feature (Mandatory)
  - 10 depth for the bonus
- - timer that counts how much time your AI takes to find its next move.
+ - timer that counts how much time your AI takes to find its next move. (<=500 ms/move)
 Create the gomoku game
 Create the user interface
  - graphical interface library [X]

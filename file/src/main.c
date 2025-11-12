@@ -1,90 +1,36 @@
 # include "../include/gomoku.h"
 
-// -----------------------------------------------------------------------------
-// Codam Coding College, Amsterdam @ 2022-2023 by W2Wizard.
-// See README in the root project for more information.
-// -----------------------------------------------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-
-
-#define WIDTH 512
-#define HEIGHT 512
-
-static mlx_image_t* image;
-
-// -----------------------------------------------------------------------------
-
-int32_t ft_pixel(int32_t r, int32_t g, int32_t b, int32_t a)
+bool checkArgs(int argc, char **argv, void**args)
 {
-    return (r << 24 | g << 16 | b << 8 | a);
+    return true;
 }
 
-void ft_randomize(void* param)
+bool initialized(void *args, void **windows, void **game)
 {
-	(void)param;
-	for (uint32_t i = 0; i < image->width; ++i)
-	{
-		for (uint32_t y = 0; y < image->height; ++y)
-		{
-			uint32_t color = ft_pixel(
-				rand() % 0xFF, // R
-				rand() % 0xFF, // G
-				rand() % 0xFF, // B
-				rand() % 0xFF  // A
-			);
-			mlx_put_pixel(image, i, y, color);
-		}
-	}
+    
+    return true;
 }
 
-void ft_hook(void* param)
+
+int32_t main(int argc, char **argv)
 {
-	mlx_t* mlx = param;
+    void *args; // args will be used to know wich mode of play we are (player vs machine, p vs p, m vs m, or other game mode)
+    void *windows; // windows will be used to put the MLX nescessaries information inside
+    void *game; // will contain all nescessary data for the game
 
-	if (mlx_is_key_down(mlx, MLX_KEY_ESCAPE))
-		mlx_close_window(mlx);
-	if (mlx_is_key_down(mlx, MLX_KEY_UP))
-		image->instances[0].y -= 5;
-	if (mlx_is_key_down(mlx, MLX_KEY_DOWN))
-		image->instances[0].y += 5;
-	if (mlx_is_key_down(mlx, MLX_KEY_LEFT))
-		image->instances[0].x -= 5;
-	if (mlx_is_key_down(mlx, MLX_KEY_RIGHT))
-		image->instances[0].x += 5;
-}
+    if (!checkArgs(argc,argv, &args))
+    {
+        return (EXIT_FAILURE);
+    }
 
-// -----------------------------------------------------------------------------
+    if (!initialized(args, &windows, &game)) // initialized will launch the game windows and initialized the nescessary data
+    {
+        return (EXIT_FAILURE);
+    }
 
-int32_t main(void)
-{
-	mlx_t* mlx;
+    // gameLoop(game,windows);
 
-	// Gotta error check this stuff
-	if (!(mlx = mlx_init(WIDTH, HEIGHT, "MLX42", true)))
-	{
-		puts(mlx_strerror(mlx_errno));
-		return(EXIT_FAILURE);
-	}
-	if (!(image = mlx_new_image(mlx, 128, 128)))
-	{
-		mlx_close_window(mlx);
-		puts(mlx_strerror(mlx_errno));
-		return(EXIT_FAILURE);
-	}
-	if (mlx_image_to_window(mlx, image, 0, 0) == -1)
-	{
-		mlx_close_window(mlx);
-		puts(mlx_strerror(mlx_errno));
-		return(EXIT_FAILURE);
-	}
-	
-	mlx_loop_hook(mlx, ft_randomize, mlx);
-	mlx_loop_hook(mlx, ft_hook, mlx);
+    
+    return (EXIT_SUCCESS);
 
-	mlx_loop(mlx);
-	mlx_terminate(mlx);
-	return (EXIT_SUCCESS);
 }
