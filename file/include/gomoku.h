@@ -1,8 +1,8 @@
 #ifndef GOMOKU_H
 # define GOMOKU_H
 
-# define WIDTH 1024
-# define HEIGHT 1024
+# define WIDTH 254
+# define HEIGHT 254
 # define true 1
 # define false 0
 # define TRUE 1
@@ -39,7 +39,7 @@ typedef struct screen
 
 typedef struct game
 {
-    int         **board;        // game board, 1 for player 1, 2 for player 2, 0 for empty, 3 for previsualization
+    int         board[50][50];        // game board, 1 for player 1, 2 for player 2, 0 for empty, 3 for previsualization
     int         board_size;     // size of the board
     int         turn;           // current turn
     bool        game_over;      // is the game over
@@ -53,6 +53,9 @@ void    keyhook(mlx_key_data_t keydata, void *param);
 void    cursor(double xpos, double ypos, void *param);
 void    resize(int32_t width, int32_t height, void *param);
 
+void ft_hook(void* param);
+void ft_randomize(void* param);
+uint32_t main2();
 
 
 #endif // GOMOKU_H

@@ -27,24 +27,12 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->isClicked = false;
     windows->changed = true;
     gameData->board_size = BOARD_SIZE;
-    gameData->board = malloc(sizeof(int*) * gameData->board_size);
-    if (!gameData->board)
-    {
-        perror("Failed to allocate memory for game board");
-        return false;
-    }
     for (int i = 0; i < gameData->board_size; i++)
     {
-        gameData->board[i] = malloc(sizeof(int) * gameData->board_size);
-        if (!gameData->board[i])
+        for (int j = 0; j < gameData->board_size; j++)
         {
-            perror("Failed to allocate memory for game board row");
-            for (int j = 0; j < i; j++)
-                free(gameData->board[j]);
-            free(gameData->board);
-            return false;
+            gameData->board[i][j] = 0; // empty cell
         }
-        memset(gameData->board[i], 0, sizeof(int) * gameData->board_size);
     }
     gameData->turn = 1; // player 1 starts
     gameData->game_over = false;
@@ -57,7 +45,7 @@ void gameLoop(void *param)
 
     if (windows->changed)
     {
-        printBlack(windows);
+        // printBlack(windows);
         windows->changed = false;
     }
 }
@@ -73,26 +61,24 @@ void launchGame(game *gameData, screen *windows)
         exit(EXIT_FAILURE);
     }
     windows->img = mlx_new_image(windows->mlx, windows->width, windows->height);
-    mlx_image_to_window(windows->mlx, windows->img, 0, 0);
-    // mlx_resize_hook(windows->mlx, &resize, &windows);
-    mlx_loop_hook(windows->mlx, &gameLoop, &windows);
-    mlx_cursor_hook(windows->mlx, &cursor, &windows);
-    mlx_key_hook(windows->mlx, &keyhook, &windows);
-    // mlx_mouse_hook(windows->mlx, &mousehook, &windows);
+    if (mlx_image_to_window(windows->mlx, windows->img, 0, 0) == -1)
+    {
+        mlx_close_window(windows->mlx);
+        puts(mlx_strerror(mlx_errno));
+        exit(EXIT_FAILURE);
+    }
+    
+    mlx_resize_hook(windows->mlx, &resize, windows);
+    mlx_loop_hook(windows->mlx, &gameLoop, windows);
+    mlx_cursor_hook(windows->mlx, &cursor, windows);
+    mlx_key_hook(windows->mlx, &keyhook, windows);
+    // mlx_mouse_hook(windows->mlx, &mousehook, windows);
     mlx_loop(windows->mlx);
-    // mlx_close_hook(windows->mlx, &closeScreen, &windows);
+    // mlx_close_hook(windows->mlx, &closeScreen, windows);
     // mlx_delete_image(windows->mlx, windows->img);
     mlx_terminate(windows->mlx);
 }
 
-void freeData(game gameData)
-{
-    for (int i = 0; i < gameData.board_size; i++)
-    {
-        free(gameData.board[i]);
-    }
-    free(gameData.board);
-}
 
 int main(int argc, char **argv)
 {
@@ -112,8 +98,8 @@ int main(int argc, char **argv)
     }
 
     launchGame(&gameData, &windows);
-    // freeData(gameData);
-    
-    return (EXIT_SUCCESS);
+
+    exit(EXIT_SUCCESS);
+    // return (EXIT_SUCCESS);
 
 }

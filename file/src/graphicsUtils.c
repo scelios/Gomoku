@@ -2,17 +2,25 @@
 
 void	resize(int32_t width, int32_t height, void *param)
 {
-    screen	*windows;
+    screen	*windows = (struct screen *)param;
 
-    windows = (struct screen *)param;
-    mlx_delete_image(windows->mlx, windows->img);
-    if (!windows->img)
-        exit(EXIT_FAILURE);
-    // if (width < height)
-    //     width = height;
-    // else
-    //     height = width;
+    if (!windows)
+        return;
+
+    if (windows->img)
+    {
+        mlx_delete_image(windows->mlx, windows->img);
+        windows->img = NULL;
+    }
+
     windows->img = mlx_new_image(windows->mlx, width, height);
+    if (!windows->img)
+    {
+        fprintf(stderr, "mlx_new_image failed in resize\n");
+        mlx_close_window(windows->mlx);
+        return;
+    }
+
     windows->width = width;
     windows->height = height;
     windows->moved = true;
@@ -53,7 +61,7 @@ void printBlack(screen *windows)
         {
             // if (i % (windows->width / MAP_SIZE) == 0 || j % (windows->height / MAP_SIZE) == 0)
             // 	continue;
-            mlx_put_pixel(windows->img, i, j, get_rgba(0, 255, 0, 255));
+            mlx_put_pixel(windows->img, i, j, get_rgba(0, 0, 0, 255));
         }
     }
 }
