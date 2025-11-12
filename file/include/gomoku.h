@@ -18,6 +18,7 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
 // Project Libraries
 #include "../MLX42/include/MLX42/MLX42.h"
@@ -35,27 +36,39 @@ typedef struct screen
     bool            resized;        // window resized
     bool            isClicked;      // mouse button clicked
     bool            changed;        // screen needs to be redrawn
+    int             board_size;     // size of the board
+
 }    screen;
 
 typedef struct game
 {
     int         board[50][50];        // game board, 1 for player 1, 2 for player 2, 0 for empty, 3 for previsualization
     int         board_size;     // size of the board
-    int         turn;           // current turn
+    int         turn;           // player turn (1 or 2)
     bool        game_over;      // is the game over
 }   game;
+
+typedef struct both
+{
+    screen  *windows;
+    game    *gameData;
+}   both;
 
 
 // Graphics utils
 int     get_rgba(int r, int g, int b, int a);
 void    printBlack(screen *windows);
+void    putCadrillage(screen *windows);
+int     teamColor(unsigned short int team);
+void    drawSquare(screen *windows, int x0, int y0, unsigned short int team);
+
+
+// Hooks
 void    keyhook(mlx_key_data_t keydata, void *param);
 void    cursor(double xpos, double ypos, void *param);
 void    resize(int32_t width, int32_t height, void *param);
+void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *param);
 
-void ft_hook(void* param);
-void ft_randomize(void* param);
-uint32_t main2();
 
 
 #endif // GOMOKU_H

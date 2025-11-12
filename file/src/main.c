@@ -26,7 +26,8 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->resized = false;
     windows->isClicked = false;
     windows->changed = true;
-    gameData->board_size = BOARD_SIZE;
+    windows->board_size = BOARD_SIZE;
+    gameData->board_size = windows->board_size;
     for (int i = 0; i < gameData->board_size; i++)
     {
         for (int j = 0; j < gameData->board_size; j++)
@@ -39,19 +40,39 @@ bool initialized(void *args, screen *windows, game *gameData)
     return true;
 }
 
+
+void putPiecesOnBoard(screen *windows, int board[50][50])
+{
+    for (int i = 0; i < windows->board_size; i++)
+    {
+        for (int j = 0; j < windows->board_size; j++)
+        {
+            if (board[i][j] == 1 || board[i][j] == 2)
+                drawSquare(windows, j, i, board[i][j] - 1);
+        }
+    }
+}
+
 void gameLoop(void *param)
 {
-    screen  *windows = (struct screen *)param;
+    both        *args = (struct both *)param;
+    screen      *windows = args->windows;
+    game        *gameData = args->gameData;
 
     if (windows->changed)
     {
-        // printBlack(windows);
+        printBlack(windows);
+        putCadrillage(windows);
+        putPiecesOnBoard(windows, gameData->board);
         windows->changed = false;
     }
 }
 
 void launchGame(game *gameData, screen *windows)
 {
+    both args;
+    args.windows = windows;
+    args.gameData = gameData;
     (void)gameData;
 
     windows->mlx = mlx_init((int32_t)windows->width, (int32_t)windows->height, "Gomoku", true);
@@ -67,12 +88,12 @@ void launchGame(game *gameData, screen *windows)
         puts(mlx_strerror(mlx_errno));
         exit(EXIT_FAILURE);
     }
-    
+
     mlx_resize_hook(windows->mlx, &resize, windows);
-    mlx_loop_hook(windows->mlx, &gameLoop, windows);
+    mlx_loop_hook(windows->mlx, &gameLoop, &args);
     mlx_cursor_hook(windows->mlx, &cursor, windows);
+    mlx_mouse_hook(windows->mlx, &mousehook, &args);
     mlx_key_hook(windows->mlx, &keyhook, windows);
-    // mlx_mouse_hook(windows->mlx, &mousehook, windows);
     mlx_loop(windows->mlx);
     // mlx_close_hook(windows->mlx, &closeScreen, windows);
     // mlx_delete_image(windows->mlx, windows->img);
@@ -99,7 +120,7 @@ int main(int argc, char **argv)
 
     launchGame(&gameData, &windows);
 
-    exit(EXIT_SUCCESS);
-    // return (EXIT_SUCCESS);
+    // exit(EXIT_SUCCESS);
+    return (EXIT_SUCCESS);
 
 }
