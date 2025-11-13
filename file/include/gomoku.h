@@ -9,6 +9,10 @@
 # define FALSE 0
 
 # define BOARD_SIZE 19
+# define BOARD_MARGIN_LEFT 30
+# define BOARD_MARGIN_TOP 30
+# define BOARD_MARGIN_RIGHT 30
+# define BOARD_MARGIN_BOTTOM 30
 
 // Standard Libraries
 #include <stdio.h>
@@ -43,9 +47,9 @@ typedef struct screen
 
 typedef struct timer
 {
-    clock_t start_time;
-    clock_t elapsed_time;
-    bool    running;
+    bool running;
+    struct timespec start_ts;
+    double elapsed; /* elapsed seconds accumulated */
 }   timer;
 
 typedef struct game
@@ -56,7 +60,7 @@ typedef struct game
     int         iaTurn;         // 1 or 2 will be the ia turn
     bool        game_over;      // is the game over
     timer       ia_timer;       // ia time for making a move
-    int         score[2];       // scores for player 1 and player 2
+    int         score[2];       // scores for player 1 and player 2f
 }   game;
 
 typedef struct both

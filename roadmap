@@ -8,6 +8,7 @@ Create the min-max algo
  - move-suggestion feature (Mandatory)
  - 10 depth for the bonus
  - timer that counts how much time your AI takes to find its next move. (<=500 ms/move) [X]
+
 Create the gomoku game
 Create the user interface
  - graphical interface library [X]
@@ -20,3 +21,8 @@ Bonus:
  - Pleasing interface
  - Online
  - Connect to a llm for roasting the player
+
+Quand on prend une piece elle disparait beaucoup trop lentement
+Changer les couleurs des pieces sans aucune logique
+Avoir des flashbang
+Ajouter captch et brainroot lorsque l'on gagne une piece

@@ -67,9 +67,26 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
     game   *gameData = args->gameData;
     (void)mods;
 
-    /* compute cell indices directly */
-    int cell_x = (int)(windows->x * (double)windows->board_size / (double)windows->width);
-    int cell_y = (int)(windows->y * (double)windows->board_size / (double)windows->height);
+    int ml = BOARD_MARGIN_LEFT;
+    int mr = BOARD_MARGIN_RIGHT;
+    int mt = BOARD_MARGIN_TOP;
+    int mb = BOARD_MARGIN_BOTTOM;
+
+    int drawable_w = (int)windows->width - ml - mr;
+    int drawable_h = (int)windows->height - mt - mb;
+    if (drawable_w <= 0 || drawable_h <= 0 || windows->board_size <= 0)
+         return;
+
+    /* ignore clicks outside the board rectangle */
+    if (windows->x < ml || windows->x >= (ml + drawable_w) ||
+        windows->y < mt || windows->y >= (mt + drawable_h))
+         return;
+
+    double rel_x = windows->x - ml;
+    double rel_y = windows->y - mt;
+
+    int cell_x = (int)(rel_x * windows->board_size / (double)drawable_w);
+    int cell_y = (int)(rel_y * windows->board_size / (double)drawable_h);
 
     if (cell_x < 0) cell_x = 0;
     if (cell_y < 0) cell_y = 0;

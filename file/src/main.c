@@ -38,9 +38,9 @@ bool initialized(void *args, screen *windows, game *gameData)
     }
     gameData->turn = 1; // player 1 starts
     gameData->game_over = false;
-    gameData->ia_timer.start_time = 0;
-    gameData->ia_timer.elapsed_time = 0;
     gameData->ia_timer.running = false;
+    gameData->ia_timer.start_ts.tv_sec = 0;
+    gameData->ia_timer.start_ts.tv_nsec = 0;
     gameData->score[0] = 0;
     gameData->score[1] = 0;
     return true;

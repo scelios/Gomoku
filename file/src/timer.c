@@ -1,27 +1,33 @@
 #include "../include/gomoku.h"
 
-void resetTimer(timer *t)
-{
-    t->start_time = 0;
-    t->elapsed_time = 0;
-    t->running = false;
-}
-
 void launchTimer(timer *t)
 {
+    if (!t) return;
     if (!t->running)
     {
-        resetTimer(t);
-        t->start_time = clock();
+        clock_gettime(CLOCK_MONOTONIC, &t->start_ts);
         t->running = true;
     }
 }
+
 void stopTimer(timer *t)
 {
+    if (!t) return;
     if (t->running)
     {
-        t->elapsed_time += clock() - t->start_time;
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        double diff = (now.tv_sec - t->start_ts.tv_sec) + (now.tv_nsec - t->start_ts.tv_nsec) / 1e9;
+        t->elapsed += diff;
         t->running = false;
-
     }
+}
+
+void resetTimer(timer *t)
+{
+    if (!t) return;
+    t->running = false;
+    t->elapsed = 0.0;
+    t->start_ts.tv_sec = 0;
+    t->start_ts.tv_nsec = 0;
 }
