@@ -23,10 +23,11 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->width = WIDTH;
     windows->height = HEIGHT;
     windows->moved = false;
-    windows->resized = false;
+    windows->resized = true;
     windows->isClicked = false;
     windows->changed = true;
     windows->board_size = BOARD_SIZE;
+    windows->text_img = NULL;
     gameData->board_size = windows->board_size;
     for (int i = 0; i < gameData->board_size; i++)
     {
@@ -37,6 +38,11 @@ bool initialized(void *args, screen *windows, game *gameData)
     }
     gameData->turn = 1; // player 1 starts
     gameData->game_over = false;
+    gameData->ia_timer.start_time = 0;
+    gameData->ia_timer.elapsed_time = 0;
+    gameData->ia_timer.running = false;
+    gameData->score[0] = 0;
+    gameData->score[1] = 0;
     return true;
 }
 
@@ -53,6 +59,14 @@ void putPiecesOnBoard(screen *windows, int board[50][50])
     }
 }
 
+void resetScreen(screen *windows, int board[50][50])
+{
+    printBlack(windows);
+    putCadrillage(windows);
+    putPiecesOnBoard(windows, board);
+}
+
+
 void gameLoop(void *param)
 {
     both        *args = (struct both *)param;
@@ -61,11 +75,17 @@ void gameLoop(void *param)
 
     if (windows->changed)
     {
-        printBlack(windows);
-        putCadrillage(windows);
-        putPiecesOnBoard(windows, gameData->board);
+        if (windows->resized)
+        {
+            windows->resized = false;
+            resetScreen(windows, gameData->board);
+        }
+
         windows->changed = false;
     }
+
+    printInformation(windows, gameData);
+
 }
 
 void launchGame(game *gameData, screen *windows)
@@ -93,7 +113,7 @@ void launchGame(game *gameData, screen *windows)
     mlx_loop_hook(windows->mlx, &gameLoop, &args);
     mlx_cursor_hook(windows->mlx, &cursor, windows);
     mlx_mouse_hook(windows->mlx, &mousehook, &args);
-    mlx_key_hook(windows->mlx, &keyhook, windows);
+    mlx_key_hook(windows->mlx, &keyhook, &args);
     mlx_loop(windows->mlx);
     // mlx_close_hook(windows->mlx, &closeScreen, windows);
     // mlx_delete_image(windows->mlx, windows->img);

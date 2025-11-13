@@ -12,7 +12,12 @@ void	resize(int32_t width, int32_t height, void *param)
         mlx_delete_image(windows->mlx, windows->img);
         windows->img = NULL;
     }
-
+    /* remove any text image that references the old buffers */
+    if (windows->text_img)
+    {
+        mlx_delete_image(windows->mlx, windows->text_img);
+        windows->text_img = NULL;
+    }
     windows->img = mlx_new_image(windows->mlx, width, height);
     if (!windows->img)
     {
@@ -39,12 +44,19 @@ void	cursor(double xpos, double ypos, void *param)
 
 void	keyhook(mlx_key_data_t keydata, void *param)
 {
-    screen	*windows = (struct screen *)param;
+    both   *args = (struct both *)param;
+    screen *windows = args->windows;
+    game   *gameData = args->gameData;
 
     if (keydata.key == MLX_KEY_ESCAPE && keydata.action == MLX_PRESS)
     {
         printf("Escape key pressed, closing window.\n");
         mlx_close_window(windows->mlx);
+    }
+    if (keydata.key == MLX_KEY_SPACE && keydata.action == MLX_PRESS)
+    {
+        // set ia mode on
+        gameData->iaTurn = (gameData->iaTurn == 0) ? 1 : 0;
     }
 }
 
