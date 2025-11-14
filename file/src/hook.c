@@ -99,7 +99,9 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
         {
             printf("Placing piece for player %d at (%d, %d)\n", gameData->turn, cell_x, cell_y);
             gameData->board[cell_y][cell_x] = gameData->turn;
-            drawSquare(windows, cell_x, cell_y, gameData->turn - 1);
+            /* check captures caused BY this new stone only */
+            checkPieceCapture(gameData, windows, cell_x, cell_y);
+            drawSquare(windows, cell_x, cell_y, gameData->turn);
             windows->changed = true;
             gameData->turn = (gameData->turn == 1) ? 2 : 1;
         }

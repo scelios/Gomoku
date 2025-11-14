@@ -78,7 +78,7 @@ int teamColor(unsigned short int team)
     switch (team)
     {
     case 0:
-        return get_rgba(0, 0, 0, 0);
+        return get_rgba(0, 0, 0, 255);
     case 1:
         return get_rgba(0, 255, 0, 255);
     case 2:

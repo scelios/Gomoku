@@ -54,7 +54,7 @@ void putPiecesOnBoard(screen *windows, int board[50][50])
         for (int j = 0; j < windows->board_size; j++)
         {
             if (board[i][j] == 1 || board[i][j] == 2)
-                drawSquare(windows, j, i, board[i][j] - 1);
+                drawSquare(windows, j, i, board[i][j]);
         }
     }
 }
@@ -64,6 +64,104 @@ void resetScreen(screen *windows, int board[50][50])
     printBlack(windows);
     putCadrillage(windows);
     putPiecesOnBoard(windows, board);
+}
+
+bool in_bounds(int x, int y, int n){
+    return x >= 0 && y >= 0 && x < n && y < n;
+}
+
+void checkPieceCapture(game *gameData, screen *windows, int lx, int ly)
+{
+    if (!gameData || !windows)
+        return;
+
+    int n = gameData->board_size;
+    if (n <= 0 || n > 50)
+        return;
+
+    /* safeguard: last move must be inside board */
+    if (!in_bounds(lx, ly, n))
+        return;
+
+    bool marked[50][50] = { false };
+    int captures_by_player[2] = {0, 0};
+
+    int owner = gameData->board[ly][lx];
+    if (owner != 1 && owner != 2)
+        return;
+    int opponent = (owner == 1) ? 2 : 1;
+
+    /* 8 directions */
+    const int dirs[8][2] = {
+        { 1, 0}, { 0, 1}, {-1, 0}, { 0,-1},
+        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
+    };
+
+    for (int d = 0; d < 8; d++)
+    {
+        int dx = dirs[d][0];
+        int dy = dirs[d][1];
+
+        int x1 = lx + dx, y1 = ly + dy;
+        int x2 = lx + 2*dx, y2 = ly + 2*dy;
+        int x3 = lx + 3*dx, y3 = ly + 3*dy;
+
+        if (!in_bounds(x1, y1, n) || !in_bounds(x2, y2, n) || !in_bounds(x3, y3, n))
+            continue;
+
+        /* pattern: owner (lx,ly) - opponent - opponent - owner (x3,y3) */
+        if (gameData->board[y1][x1] == opponent &&
+            gameData->board[y2][x2] == opponent &&
+            gameData->board[y3][x3] == owner)
+        {
+            /* mark the two opponent stones for removal (avoid double counting) */
+            if (!marked[y1][x1] && !marked[y2][x2])
+            {
+                marked[y1][x1] = true;
+                marked[y2][x2] = true;
+                captures_by_player[owner - 1] += 1; /* one pair captured */
+            }
+        }
+    }
+
+    /* apply captures (if any) */
+    int total_captures = 0;
+    for (int y = 0; y < n; y++)
+    {
+        for (int x = 0; x < n; x++)
+        {
+            if (marked[y][x])
+            {
+                gameData->board[y][x] = 0;
+                total_captures++;
+                drawSquare(windows, x, y, 0); /* redraw empty square */
+            }
+        }
+    }
+
+    if (total_captures > 0)
+    {
+        /* update scores: captures_by_player counts pairs */
+        gameData->score[0] += captures_by_player[0];
+        gameData->score[1] += captures_by_player[1];
+
+        /* request redraw once */
+        windows->changed = true;
+    }
+}
+
+void checkVictoryCondition(game *gameData, screen *windows)
+{
+    // Placeholder for victory condition logic
+    (void)gameData;
+    (void)windows;
+}
+
+void makeIaMove(game *gameData, screen *windows)
+{
+    // Placeholder for IA move logic
+    (void)gameData;
+    (void)windows;
 }
 
 
@@ -80,7 +178,11 @@ void gameLoop(void *param)
             windows->resized = false;
             resetScreen(windows, gameData->board);
         }
-
+        if (isIaTurn(gameData->iaTurn, gameData->turn) && !gameData->game_over)
+        {
+            makeIaMove(gameData, windows);
+        }
+        checkVictoryCondition(gameData, windows);
         windows->changed = false;
     }
 

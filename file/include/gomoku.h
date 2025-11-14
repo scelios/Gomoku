@@ -1,8 +1,8 @@
 #ifndef GOMOKU_H
 # define GOMOKU_H
 
-# define WIDTH 254
-# define HEIGHT 254
+# define WIDTH 528
+# define HEIGHT 528
 # define true 1
 # define false 0
 # define TRUE 1
@@ -54,7 +54,7 @@ typedef struct timer
 
 typedef struct game
 {
-    int         board[50][50];        // game board, 1 for player 1, 2 for player 2, 0 for empty, 3 for previsualization
+    int         board[50][50];  // game board, 1 for player 1, 2 for player 2, 0 for empty, 3 for previsualization
     int         board_size;     // size of the board
     int         turn;           // player turn (1 or 2)
     int         iaTurn;         // 1 or 2 will be the ia turn
@@ -94,6 +94,7 @@ bool isIaTurn(int iaTurn, int turn);
 
 // Information
 void printInformation(screen *windows, game *gameData);
+void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
 
 
 
