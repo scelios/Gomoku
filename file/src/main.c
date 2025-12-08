@@ -93,6 +93,8 @@ void gameLoop(void *param)
         {
             makeIaMove(gameData, windows);
         }
+        else
+            resetTimer(&gameData->ia_timer);
         checkVictoryCondition(gameData, windows);
         windows->changed = false;
         gameData->turn = (gameData->turn == 1) ? 2 : 1;

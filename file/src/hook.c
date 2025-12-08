@@ -97,7 +97,7 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
     {
         if (!gameData->game_over && gameData->board[cell_y][cell_x] == 0)
         {
-            printf("Placing piece for player %d at (%d, %d)\n", gameData->turn, cell_x, cell_y);
+            // printf("Placing piece for player %d at (%d, %d)\n", gameData->turn, cell_x, cell_y);
             gameData->board[cell_y][cell_x] = gameData->turn;
             /* check captures caused BY this new stone only */
             checkPieceCapture(gameData, windows, cell_x, cell_y);
