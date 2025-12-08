@@ -13,7 +13,8 @@
 # define BOARD_MARGIN_TOP 30
 # define BOARD_MARGIN_RIGHT 30
 # define BOARD_MARGIN_BOTTOM 30
-
+# define MAX_ROW_LENGTH 10
+# define MAX_NROWS 200
 // Standard Libraries
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,6 +70,23 @@ typedef struct both
     game    *gameData;
 }   both;
 
+typedef struct vector2
+{
+    int x;
+    int y;
+} vector2;
+
+typedef struct rowCoordinates
+{
+    vector2 coords[10]; // max 10 coordinates per row of 5 or more
+    int length;       // length of the row
+} rowCoordinates;
+
+typedef struct nRowList
+{
+    rowCoordinates rows[MAX_NROWS]; // max rows of 5 or more
+} nRowList;
+
 
 // Graphics utils
 int     get_rgba(int r, int g, int b, int a);
@@ -96,6 +114,16 @@ bool isIaTurn(int iaTurn, int turn);
 void printInformation(screen *windows, game *gameData);
 void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
 
+// Captures
+bool    captureParamsValid(game *gameData, screen *windows, int lx, int ly);
+int     markCapturesFromMove(game *gameData, int lx, int ly, bool marked[50][50], int capturesByPlayer[2]);
+int     removeMarkedPieces(game *gameData, screen *windows, bool marked[50][50]);
+void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
+bool    in_bounds(int x, int y, int n);
+
+// Victory
+void    checkVictoryCondition(game *gameData, screen *windows);
+nRowList getCoordinatesOfNRow(int board[50][50], int player);
 
 
 #endif // GOMOKU_H

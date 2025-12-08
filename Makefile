@@ -1,50 +1,53 @@
-# ---------------------------------------------------------------------------- #
-#                                    DEFINS                                    #
-# ---------------------------------------------------------------------------- #
 NAME	:= gomoku
-TARGET	:= gomoku
+# CFLAGS	:= -Wextra -Wall -Werror -Ofast -g -DDEBUG=1
+CFLAGS	:= -Ofast -g -DDEBUG=1
+LIBMLX	:= ./file/MLX42
+INCDIR = includes
+LGLFW_PATH := /usr/lib/x86_64-linux-gnu/libglfw.so
+# LGLFW_PATH := $(shell brew --prefix glfw)
+HEADERS	:= -I ../include -I $(LIBMLX)/include
+LIBS	:= $(LIBMLX)/build/libmlx42.a -ldl -lglfw -pthread -lm -L $(LGLFW_PATH)/lib/
 
-SERVER	:= server
-CLIENT	:= client
+SRCS	= $(shell find ./file/src -iname "*.c")
+# SRCS	:= ./file/src/test.c
 
-CYAN="\033[1;36m"
-RED="\033[31m"
-GREEN="\033[32m"
-YELLOW="\033[33m"
-RESET="\033[m"
+OBJS	= ${SRCS:.c=.o}
 
-# ---------------------------------------------------------------------------- #
-#                                     RULES                                    #
-# ---------------------------------------------------------------------------- #
+all: libmlx $(NAME)
 
-.PHONY: all
-all	:
-	docker compose up --build -d 
+mlx:
+	@git clone https://github.com/codam-coding-college/MLX42.git $(LIBMLX)
 
-.PHONY: clean
-clean	:
-	docker compose down -t0
-
-.PHONY: prune
-prune	: clean
-	docker system prune -f -a
-
-.PHONY: fclean
-fclean	: clean
-	@make -C ./file fclean
-	-docker stop $(shell docker ps -qa) 2>/dev/null
-	-docker rm $(shell docker ps -qa) 2>/dev/null
-	-docker rmi -f $(shell docker images -qa) 2>/dev/null
-	-docker volume rm $(shell docker volume ls -q) 2>/dev/null
-	-docker network rm $(shell docker network ls -q) 2>/dev/null
-
-.PHONY: build
-build	:
+docker: all
+	@cp gomoku ./file/gomoku
 	docker compose up --build -d
 
-.PHONY: exec
-exec	: build
-	docker exec -it gomoku /bin/bash
+libmlx:
+	@cmake $(LIBMLX) -B $(LIBMLX)/build && make -C $(LIBMLX)/build -j4
 
-.PHONY: re
-re : fclean all
+%.o: %.c
+	@$(CC) $(CFLAGS) -o $@ -c $< -I$(INCDIR) && printf "Compiling: $(notdir $<)\n"
+
+$(NAME): $(OBJS)
+	@$(CC) $(OBJS) $(LIBS) $(HEADERS) -o $(NAME) && printf "Linking: $(NAME)\n"
+
+clean:
+	@rm -f $(OBJS)
+	@printf "Cleaned object files.\n"
+
+fclean: clean
+	@rm -f $(NAME)
+	@cmake --build $(LIBMLX)/build --target clean
+	@printf "Removed executable: $(NAME).\n"
+
+re: fclean all
+
+git: fclean
+	git add *
+	git commit -m "auto commit"
+	git push
+
+brew:
+	brew install glfw
+
+.PHONY: all clean fclean re libmlx git brew

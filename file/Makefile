@@ -1,5 +1,7 @@
 NAME	:= gomoku
-CFLAGS	:= -Wextra -Wall -Werror -Ofast -g -DDEBUG=1
+# CFLAGS	:= -Wextra -Wall -Werror -Ofast -g -DDEBUG=1
+CFLAGS	:= -Ofast -g -DDEBUG=1
+
 LIBMLX	:= ./MLX42
 INCDIR = includes
 LGLFW_PATH := /usr/lib/x86_64-linux-gnu/libglfw.so
@@ -12,6 +14,7 @@ SRCS	= $(shell find ./src -iname "*.c")
 OBJS	= ${SRCS:.c=.o}
 
 all: libmlx $(NAME)
+
 
 mlx:
 	@git clone https://github.com/codam-coding-college/MLX42.git $(LIBMLX)

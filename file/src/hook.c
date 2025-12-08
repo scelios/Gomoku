@@ -103,7 +103,6 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
             checkPieceCapture(gameData, windows, cell_x, cell_y);
             drawSquare(windows, cell_x, cell_y, gameData->turn);
             windows->changed = true;
-            gameData->turn = (gameData->turn == 1) ? 2 : 1;
         }
     }
 }

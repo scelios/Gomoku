@@ -1,6 +1,9 @@
 MLX42
 gomoku
 *.json
+Makefile
+Docker_Makefile
+
 # Prerequisites
 *.d
 
