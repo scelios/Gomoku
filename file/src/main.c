@@ -30,12 +30,12 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->text_img = NULL;
     gameData->board_size = windows->board_size;
     /* Initialize the entire fixed-size board to zero to avoid uninitialized memory */
-    for (int i = 0; i < 50; i++)
+    for (int i = 0; i < 19; i++)
     {
-        for (int j = 0; j < 50; j++)
+        for (int j = 0; j < 19; j++)
             gameData->board[i][j] = 0;
     }
-    gameData->iaTurn = 0;
+    gameData->iaTurn = 2;
     gameData->ia_timer.elapsed = 0.0;
     gameData->turn = 1; // player 1 starts
     gameData->game_over = false;
@@ -48,7 +48,7 @@ bool initialized(void *args, screen *windows, game *gameData)
 }
 
 
-void putPiecesOnBoard(screen *windows, int board[50][50])
+void putPiecesOnBoard(screen *windows, int board[19][19])
 {
     for (int i = 0; i < windows->board_size; i++)
     {
@@ -60,7 +60,7 @@ void putPiecesOnBoard(screen *windows, int board[50][50])
     }
 }
 
-void resetScreen(screen *windows, int board[50][50])
+void resetScreen(screen *windows, int board[19][19])
 {
     printBlack(windows);
     putCadrillage(windows);
@@ -69,12 +69,49 @@ void resetScreen(screen *windows, int board[50][50])
 
 void makeIaMove(game *gameData, screen *windows)
 {
-    // TODO
-    // Placeholder for IA move logic
-    (void)gameData;
-    (void)windows;
-}
+    printf("IA (Player %d) is thinking...\n", gameData->turn);
+    
+    // Définir la profondeur de recherche (à ajuster en fonction de la performance)
+    // 3 est un bon point de départ, 5 est souvent le minimum pour une IA compétitive.
+    const int depth = 3; 
+    
+    // Lancer le timer pour respecter un temps limite (important !)
+    launchTimer(&gameData->ia_timer);
 
+    // Lancer la recherche Minimax
+    move best_move = findBestMove(gameData, depth);
+
+    stopTimer(&gameData->ia_timer);
+    printf("IA chose move (%d, %d) with score %d in %.2f seconds.\n", 
+           best_move.position.x, best_move.position.y, best_move.score, 
+           gameData->ia_timer.elapsed);
+    
+    // Si un coup valide est trouvé
+    if (best_move.position.x != -1)
+    {
+        int x = best_move.position.x;
+        int y = best_move.position.y;
+        
+        // 1. Placer la pièce
+        gameData->board[y][x] = gameData->turn;
+        
+        // 2. Mettre à jour l'affichage
+        drawSquare(windows, x, y, gameData->turn);
+        
+        // 3. Vérifier et exécuter les captures (très important !)
+        checkPieceCapture(gameData, windows, x, y);
+        
+        // 4. DEMANDER le redraw et CHANGER le tour ici !
+        windows->changed = true;
+        gameData->turn = (gameData->turn == 1) ? 2 : 1; // Le tour change seulement SI le coup a été joué
+    }
+    else
+    {
+        // Gérer le cas où aucun coup n'est possible (Plateau plein, mais peu probable)
+        printf("IA: No valid moves found.\n");
+        gameData->game_over = true;
+    }
+}
 
 void gameLoop(void *param)
 {
@@ -82,24 +119,27 @@ void gameLoop(void *param)
     screen      *windows = args->windows;
     game        *gameData = args->gameData;
 
+    if (windows->resized)
+    {
+        windows->resized = false;
+        resetScreen(windows, gameData->board);
+        windows->changed = true;
+    }
+    
+    // Phase de jeu de l'IA (si c'est son tour)
+    if (isIaTurn(gameData->iaTurn, gameData->turn) && !gameData->game_over)
+    {
+        makeIaMove(gameData, windows);
+    }
+    
+    // Exécuter les vérifications et redessiner UNIQUEMENT si un coup a été joué/l'état a changé
     if (windows->changed)
     {
-        if (windows->resized)
-        {
-            windows->resized = false;
-            resetScreen(windows, gameData->board);
-        }
-        if (isIaTurn(gameData->iaTurn, gameData->turn) && !gameData->game_over)
-        {
-            makeIaMove(gameData, windows);
-        }
         checkVictoryCondition(gameData, windows);
         windows->changed = false;
-        gameData->turn = (gameData->turn == 1) ? 2 : 1;
     }
 
     printInformation(windows, gameData);
-
 }
 
 void launchGame(game *gameData, screen *windows)

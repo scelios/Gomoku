@@ -10,7 +10,7 @@ bool captureParamsValid(game *gameData, screen *windows, int lx, int ly)
     if (!gameData || !windows)
         return false;
     int n = gameData->board_size;
-    if (n <= 0 || n > 50)
+    if (n <= 0 || n > 19)
         return false;
     if (!in_bounds(lx, ly, n))
         return false;
@@ -24,7 +24,7 @@ bool captureParamsValid(game *gameData, screen *windows, int lx, int ly)
    Fills `marked` and increments capturesByPlayer[owner-1] per pair captured.
    Returns number of stones marked (not pairs). */
 int markCapturesFromMove(game *gameData, int lx, int ly,
-                                   bool marked[50][50], int capturesByPlayer[2])
+                                   bool marked[19][19], int capturesByPlayer[2])
 {
     int n = gameData->board_size;
     int owner = gameData->board[ly][lx];
@@ -71,7 +71,7 @@ int markCapturesFromMove(game *gameData, int lx, int ly,
 
 /* helper: remove marked stones from the board and redraw their cells.
    Returns number of stones removed. */
-int removeMarkedPieces(game *gameData, screen *windows, bool marked[50][50])
+int removeMarkedPieces(game *gameData, screen *windows, bool marked[19][19])
 {
     int n = gameData->board_size;
     int removed = 0;
@@ -84,6 +84,8 @@ int removeMarkedPieces(game *gameData, screen *windows, bool marked[50][50])
             {
                 gameData->board[y][x] = 0;
                 removed++;
+                if (windows)
+                    drawSquare(windows, x, y, 0);                
                 drawSquare(windows, x, y, 0); /* redraw empty square */
             }
         }
@@ -97,7 +99,7 @@ void checkPieceCapture(game *gameData, screen *windows, int lx, int ly)
     if (!captureParamsValid(gameData, windows, lx, ly))
         return;
 
-    bool marked[50][50] = { false };
+    bool marked[19][19] = { false };
     int capturesByPlayer[2] = {0, 0};
 
     int marked_count = markCapturesFromMove(gameData, lx, ly, marked, capturesByPlayer);
@@ -112,5 +114,7 @@ void checkPieceCapture(game *gameData, screen *windows, int lx, int ly)
         gameData->score[1] += capturesByPlayer[1];
 
         windows->changed = true;
+        if (windows) // AJOUTER CETTE VÉRIFICATION
+            windows->changed = true;
     }
 }

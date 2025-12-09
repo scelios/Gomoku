@@ -4,7 +4,7 @@
 
 
 // returns list of coordinates of the 5 in a row found on the board for the given player
-nRowList getCoordinatesOfNRow(int board[50][50], int player)
+nRowList getCoordinatesOfNRow(int board[19][19], int player)
 {
     nRowList list;
     memset(&list, 0, sizeof(list)); // set all to zero
@@ -16,9 +16,9 @@ nRowList getCoordinatesOfNRow(int board[50][50], int player)
         {1, -1} // diagonal /
     };
     rowCoordinates rowBuf;
-    for (int y = 0; y < 50; y++)
+    for (int y = 0; y < 19; y++)
     {
-        for (int x = 0; x < 50; x++)
+        for (int x = 0; x < 19; x++)
         {
             if (board[y][x] != player)
                 continue;
@@ -36,7 +36,7 @@ nRowList getCoordinatesOfNRow(int board[50][50], int player)
                 rowBuf.length = 1;
                 int nx = x + dx;
                 int ny = y + dy;
-                while (nx >= 0 && nx < 50 && ny >= 0 && ny < 50 && board[ny][nx] == player && length < 50)
+                while (nx >= 0 && nx < 19 && ny >= 0 && ny < 19 && board[ny][nx] == player && length < 19)
                 {
                     rowBuf.coords[length].x = nx;
                     rowBuf.coords[length].y = ny;
@@ -67,7 +67,7 @@ nRowList getCoordinatesOfNRow(int board[50][50], int player)
     return list;
 }
 
-bool canBeCutAt(int board[50][50], vector2 coord, int player) // returns true if the 5 in a row at (x,y) can be cut
+bool canBeCutAt(int board[19][19], vector2 coord, int player) // returns true if the 5 in a row at (x,y) can be cut
 {
     // check all 8 directions for opponent stones adjacent to coord and own stones on the opposite side
     const int dirs[8][2] = {
@@ -87,9 +87,9 @@ bool canBeCutAt(int board[50][50], vector2 coord, int player) // returns true if
         int y2 = coord.y - dy;
 
 
-        if (x1 < 0 || x1 >= 50 || y1 < 0 || y1 >= 50)
+        if (x1 < 0 || x1 >= 19 || y1 < 0 || y1 >= 19)
             continue;
-        if (x2 < 0 || x2 >= 50 || y2 < 0 || y2 >= 50)
+        if (x2 < 0 || x2 >= 19 || y2 < 0 || y2 >= 19)
             continue;
 
         if (board[y1][x1] == opponent && board[y2][x2] == player)
@@ -101,7 +101,7 @@ bool canBeCutAt(int board[50][50], vector2 coord, int player) // returns true if
     return false;
 }
 
-bool RowIsLessThan5(int board[50][50], vector2 coord, int player) // returns true if the row at (x,y) is less than 5 in a row
+bool RowIsLessThan5(int board[19][19], vector2 coord, int player) // returns true if the row at (x,y) is less than 5 in a row
 {
     // TODO
     return false;

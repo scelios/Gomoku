@@ -102,6 +102,7 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
             /* check captures caused BY this new stone only */
             checkPieceCapture(gameData, windows, cell_x, cell_y);
             drawSquare(windows, cell_x, cell_y, gameData->turn);
+            gameData->turn = (gameData->turn == 1) ? 2 : 1;
             windows->changed = true;
         }
     }
