@@ -1,385 +1,323 @@
-// minimax_solver.c
-// Réécriture optimisée: make/undo in-place + move capping + heuristic local
 #include "../include/gomoku.h"
-#include <stdlib.h>
-#include <string.h>
 #include <limits.h>
 
-// Helper: applique un coup IN-PLACE et remplit moveRecord pour pouvoir undo
-// - player: 1 ou 2 (convention du projet)
-// - retourne true si posé, false si invalide (ex. case non vide)
-bool make_move_inplace(game *g, int x, int y, int player, MoveRecord *rec)
-{
-    int n = g->board_size;
-    if (!in_bounds(x, y, n)) return false;
-    if (g->board[y][x] != 0) return false;
+// =========================================================
+// SÉCURITÉ & HELPERS
+// =========================================================
 
-    // sauvegarde simple
+// Définition locale et inline pour être sûr qu'elle existe et est rapide
+static inline bool is_valid_pos(int x, int y, int n) {
+    return (x >= 0 && x < n && y >= 0 && y < n);
+}
+
+typedef struct {
+    int x, y;
+    int score;
+} FastMove;
+
+// Comparaison pour qsort (tri décroissant)
+static int compareFastMoves(const void *a, const void *b) {
+    return ((FastMove*)b)->score - ((FastMove*)a)->score;
+}
+
+// Heuristique légère pour le tri (Move Ordering)
+static int rateMoveLight(const game *g, int x, int y) {
+    int score = 0;
+    int n = g->board_size;
+    int center = n / 2;
+
+    // Distance au centre
+    score += (n - (abs(x - center) + abs(y - center)));
+
+    // Voisinnage immédiat (Rayon 1 et 2)
+    // On booste si on joue à côté d'une pierre
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            int nx = x + dx, ny = y + dy;
+            if (is_valid_pos(nx, ny, n) && g->board[ny][nx] != 0) {
+                score += 20; // Pierre adjacente
+            }
+        }
+    }
+    return score;
+}
+
+// =========================================================
+// MAKE / UNDO (IN-PLACE)
+// =========================================================
+
+bool make_move_inplace(game *g, int x, int y, int player, MoveRecord *rec, uint64_t *key_ptr) {
+    if (!is_valid_pos(x, y, g->board_size) || g->board[y][x] != 0) return false;
+
     rec->x = x; rec->y = y;
     rec->prev_turn = g->turn;
-    rec->prev_game_over = g->game_over;
     rec->prev_score[0] = g->score[0];
     rec->prev_score[1] = g->score[1];
     rec->captured_count = 0;
 
-    // poser la pierre
     g->board[y][x] = player;
     g->turn = (player == 1) ? 2 : 1;
+    if (key_ptr) updateZobrist(key_ptr, x, y, player);
 
-    // checkPieceCapture modifie g->board et g->score
-    // on doit détecter quels pions ont été retirés pour l'undo
-    // Pour compatibilité, on va appeler checkPieceCapture mais nous ne savons pas
-    // s'il fournit la liste; donc on effectue nous-même un scan des captures
-    // Pattern to capture: player - opp - opp - player (on a posé player en x,y)
-    int dirs[4][2] = {{1,0},{0,1},{1,1},{1,-1}};
-    int opp = (player == 1) ? 2 : 1;
+    // Gestion Captures
+    int opponent = (player == 1) ? 2 : 1;
+    int dirs[8][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
 
-    // IMPORTANT: call the project's capture function if it returns captured coords (preferred)
-    // Here we emulate captures detection and removal (safe generic method)
-    for (int d = 0; d < 4; ++d) {
+    for (int d = 0; d < 8; ++d) {
         int dx = dirs[d][0], dy = dirs[d][1];
-        // check forward direction: x+dx, x+2dx, x+3dx
         int x1 = x + dx, y1 = y + dy;
         int x2 = x + 2*dx, y2 = y + 2*dy;
         int x3 = x + 3*dx, y3 = y + 3*dy;
-        if (in_bounds(x3,y3,n) && in_bounds(x1,y1,n) && in_bounds(x2,y2,n)) {
-            if (g->board[y1][x1] == opp && g->board[y2][x2] == opp && g->board[y3][x3] == player) {
-                // capture pair (x1,y1),(x2,y2)
+
+        // Vérification stricte des bornes avant lecture
+        if (is_valid_pos(x3, y3, g->board_size)) {
+            if (g->board[y1][x1] == opponent && 
+                g->board[y2][x2] == opponent && 
+                g->board[y3][x3] == player) {
+                
                 if (rec->captured_count + 2 <= MAX_CAPTURED_STONES) {
-                    rec->cap_x[rec->captured_count] = x1;
-                    rec->cap_y[rec->captured_count] = y1;
-                    rec->cap_value[rec->captured_count] = opp;
+                    rec->cap_x[rec->captured_count] = x1; 
+                    rec->cap_y[rec->captured_count] = y1; 
+                    rec->cap_value[rec->captured_count] = opponent; 
                     rec->captured_count++;
-                    rec->cap_x[rec->captured_count] = x2;
-                    rec->cap_y[rec->captured_count] = y2;
-                    rec->cap_value[rec->captured_count] = opp;
+
+                    rec->cap_x[rec->captured_count] = x2; 
+                    rec->cap_y[rec->captured_count] = y2; 
+                    rec->cap_value[rec->captured_count] = opponent; 
                     rec->captured_count++;
+                    
+                    g->board[y1][x1] = 0;
+                    g->board[y2][x2] = 0;
+                    g->score[player-1] += 2;
+                    
+                    if (key_ptr) { 
+                        updateZobrist(key_ptr, x1, y1, opponent); 
+                        updateZobrist(key_ptr, x2, y2, opponent); 
+                    }
                 }
-                // remove them from board
-                g->board[y1][x1] = 0;
-                g->board[y2][x2] = 0;
-                // update capture counters if present (convention: g->score[<player-1>])
-                // It's unclear in your struct whether score[] counts stones captured BY player or lost.
-                // We follow previous code: gameData->score[player-1] increments for captures by that player.
-                g->score[player - 1] += 2;
-            }
-        }
-        // check backward direction: x-dx, x-2dx, x-3dx
-        int rx1 = x - dx, ry1 = y - dy;
-        int rx2 = x - 2*dx, ry2 = y - 2*dy;
-        int rx3 = x - 3*dx, ry3 = y - 3*dy;
-        if (in_bounds(rx3,ry3,n) && in_bounds(rx1,ry1,n) && in_bounds(rx2,ry2,n)) {
-            if (g->board[ry1][rx1] == opp && g->board[ry2][rx2] == opp && g->board[ry3][rx3] == player) {
-                if (rec->captured_count + 2 <= MAX_CAPTURED_STONES) {
-                    rec->cap_x[rec->captured_count] = rx1;
-                    rec->cap_y[rec->captured_count] = ry1;
-                    rec->cap_value[rec->captured_count] = opp;
-                    rec->captured_count++;
-                    rec->cap_x[rec->captured_count] = rx2;
-                    rec->cap_y[rec->captured_count] = ry2;
-                    rec->cap_value[rec->captured_count] = opp;
-                    rec->captured_count++;
-                }
-                g->board[ry1][rx1] = 0;
-                g->board[ry2][rx2] = 0;
-                g->score[player - 1] += 2;
             }
         }
     }
-
-    // Si la capture ou alignement transforme l'état en game over, mettre à jour flag.
-    // Appeler la fonction existante qui détecte la victoire (si elle existe)
-    // sinon on laisse game_over inchangé et rely evaluateBoard to detect terminal states.
-    // Ici on laisse g->game_over inchangé; evaluateBoard vérifiera 5-en-ligne et captures>=10.
-
     return true;
 }
 
-// Undo : restaure l'état précédent à partir de MoveRecord
-void undo_move_inplace(game *g, MoveRecord *rec)
-{
-    // supprimer la pierre jouée
+void undo_move_inplace(game *g, MoveRecord *rec, uint64_t *key_ptr) {
+    int current_owner = g->board[rec->y][rec->x];
     g->board[rec->y][rec->x] = 0;
+    if (key_ptr) updateZobrist(key_ptr, rec->x, rec->y, current_owner);
 
-    // restaurer les pierres capturées
-    for (int i = 0; i < rec->captured_count; ++i) {
+    for (int i = 0; i < rec->captured_count; i++) {
         int cx = rec->cap_x[i];
         int cy = rec->cap_y[i];
         int val = rec->cap_value[i];
-        if (in_bounds(cx, cy, g->board_size)) {
-            g->board[cy][cx] = val;
-        }
+        g->board[cy][cx] = val;
+        if (key_ptr) updateZobrist(key_ptr, cx, cy, val);
     }
 
-    // restaurer les scores et turn and flags
     g->score[0] = rec->prev_score[0];
     g->score[1] = rec->prev_score[1];
     g->turn = rec->prev_turn;
-    g->game_over = rec->prev_game_over;
 }
 
-// -----------------------------
-// getValidMoves : génère position candidates autour des pierres
-// -----------------------------
-vector2 *getValidMoves(const game *gameData, int *num_moves)
-{
-    int n = gameData->board_size;
-    bool used[50][50] = {false};
-    vector2 *out = NULL;
-    *num_moves = 0;
+// =========================================================
+// MINIMAX
+// =========================================================
 
-    for (int y = 0; y < n; ++y) {
-        for (int x = 0; x < n; ++x) {
-            if (gameData->board[y][x] != 0) {
-                for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; ++dy) {
-                    for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; ++dx) {
+static bool stop_search = false;
+static double time_limit_sec = 0.45;
+
+int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint64_t *key_ptr) {
+    static int node_check = 0;
+    // Check timeout tous les 2048 noeuds pour moins d'appel système
+    if ((++node_check & 2047) == 0) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        double elapsed = (now.tv_sec - g->ia_timer.start_ts.tv_sec) + 
+                         (now.tv_nsec - g->ia_timer.start_ts.tv_nsec) / 1e9;
+        if (elapsed > time_limit_sec) stop_search = true;
+    }
+    if (stop_search) return 0;
+
+    if (g->score[0] >= 10 || g->score[1] >= 10) return evaluateBoard(g);
+    if (depth <= 0) return evaluateBoard(g);
+
+    uint64_t key = *key_ptr;
+    TTEntry *entry = &transpositionTable[key % TRANSPOSITION_TABLE_SIZE];
+    
+    if (entry->key == key && entry->depth >= depth) {
+        if (entry->flag == EXACT) return entry->value;
+        if (entry->flag == LOWERBOUND && entry->value > alpha) alpha = entry->value;
+        else if (entry->flag == UPPERBOUND && entry->value < beta) beta = entry->value;
+        if (alpha >= beta) return entry->value;
+    }
+
+    // Génération de coups restreinte aux voisins
+    // 361 max, mais on vérifie l'index pour éviter le segfault
+    FastMove moveList[361]; 
+    int moveCount = 0;
+    int n = g->board_size;
+    
+    // Tableau visited statique pour éviter allocation stack trop grosse ?
+    // Non, il faut qu'il soit propre à la récursion. 361 bools = 361 octets. C'est safe.
+    bool visited[19][19] = {false};
+
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            if (g->board[y][x] != 0) {
+                // Rayon court (1) pour réduire le nombre de coups explorés en profondeur
+                int rad = 1; 
+                for (int dy = -rad; dy <= rad; dy++) {
+                    for (int dx = -rad; dx <= rad; dx++) {
                         int nx = x + dx, ny = y + dy;
-                        if (!in_bounds(nx, ny, n)) continue;
-                        if (gameData->board[ny][nx] != 0) continue;
-                        if (used[ny][nx]) continue;
-                        used[ny][nx] = true;
-                        // add
-                        vector2 v = {nx, ny};
-                        *num_moves += 1;
-                        out = (vector2 *)realloc(out, (*num_moves) * sizeof(vector2));
-                        if (!out) {
-                            perror("realloc failed in getValidMoves");
-                            exit(EXIT_FAILURE);
+                        if (is_valid_pos(nx, ny, n) && g->board[ny][nx] == 0 && !visited[ny][nx]) {
+                            visited[ny][nx] = true;
+                            if (moveCount < 361) { // SECURITE CRITIQUE
+                                moveList[moveCount].x = nx;
+                                moveList[moveCount].y = ny;
+                                moveList[moveCount].score = rateMoveLight(g, nx, ny);
+                                moveCount++;
+                            }
                         }
-                        out[*num_moves - 1] = v;
                     }
                 }
             }
         }
     }
 
-    // plateau vide -> centre
-    if (*num_moves == 0) {
-        *num_moves = 1;
-        out = (vector2 *)malloc(sizeof(vector2));
-        out[0].x = n / 2;
-        out[0].y = n / 2;
+    if (moveCount == 0) {
+        if (g->board[n/2][n/2] == 0) return evaluateBoard(g); // Plateau vide traité au root
+        return evaluateBoard(g); // Plus de coups ?
     }
 
-    return out;
-}
+    qsort(moveList, moveCount, sizeof(FastMove), compareFastMoves);
 
-// -----------------------------
-// getScoredMoves : score et limite à MAX_CANDIDATES
-// - Pour chaque candidat : make_move_inplace -> countFormations (existant) -> undo
-// - on garde seulement les MAX_CANDIDATES meilleurs
-// -----------------------------
-move *getScoredMoves(const game *gameDataConst, int *num_moves_out)
-{
-    // work on a mutable copy pointer since we'll apply moves in-place on a working copy
-    // but we prefer to avoid an entire board copy; we will apply moves directly to the original
-    // object provided by caller only if caller expects it — safer: create a shallow copy of board in stack and restore.
-    //
-    // Here we will create a *local mutable copy* of the game structure (only board array) to simulate moves,
-    // because original gameDataConst must stay immutable for callers.
-    game work = *gameDataConst; // shallow copy of struct (board array will be copied if contained by value)
-    // NOTE: this assumes 'board' is embedded array in game struct (as in your earlier code).
-    // If board is pointer inside game, you must use a proper deep copy. We assume embedding.
+    int best_val = maximizingPlayer ? MIN_SCORE : WINNING_SCORE;
+    int alphaOrig = alpha;
+    int player = g->turn;
 
-    int n_valid = 0;
-    vector2 *valid = getValidMoves(gameDataConst, &n_valid);
-    if (n_valid == 0) {
-        *num_moves_out = 0;
-        return NULL;
-    }
+    // Pruning agressif sur le nombre de coups à explorer par noeud (Beam Search partiel)
+    // On ne regarde que les 20 meilleurs coups si la profondeur est grande, pour éviter l'explosion
+    int moves_to_scan = moveCount;
+    // if (depth > 4 && moves_to_scan > 15) moves_to_scan = 15; // Optionnel si encore trop lent/crash
 
-    // temporary array of scored moves (capacity n_valid)
-    move *scored_all = (move *)malloc(n_valid * sizeof(move));
-    if (!scored_all) {
-        perror("malloc failed in getScoredMoves");
-        free(valid);
-        *num_moves_out = 0;
-        return NULL;
-    }
-
-    int current_player = work.turn;
-    int opponent = (current_player == 1) ? 2 : 1;
-
-    for (int i = 0; i < n_valid; ++i) {
-        vector2 pos = valid[i];
-
-        // Apply move on work game using move record
+    for (int i = 0; i < moves_to_scan; i++) {
         MoveRecord rec;
-        memset(&rec, 0, sizeof(rec));
-        // Make move in place on work
-        bool ok = make_move_inplace(&work, pos.x, pos.y, current_player, &rec);
-        if (!ok) {
-            // should not happen since valid moves are empty; skip
-            scored_all[i].position = pos;
-            scored_all[i].score = MIN_SCORE;
-            continue;
-        }
+        if (!make_move_inplace(g, moveList[i].x, moveList[i].y, player, &rec, &key)) continue;
 
-        // Evaluate locally: count formations for both players
-        int score_p = 0, threes_p = 0;
-        int score_o = 0, threes_o = 0;
-        countFormations(&work, current_player, &score_p, &threes_p);
-        countFormations(&work, opponent, &score_o, &threes_o);
+        int val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, &key);
+        undo_move_inplace(g, &rec, &key);
 
-        // priority: favor immediate win / blocks / captures
-        int priority = 0;
-
-        if (score_p >= F_FIVE || work.score[current_player - 1] >= 10) priority += 10000000;
-        if (score_o >= F_FIVE || work.score[opponent - 1] >= 10) priority -= 10000000;
-
-        // boost for open fours and threes (these constants assumed defined)
-        priority += score_p;
-        priority -= score_o;
-
-        // boosts for captures made by this move
-        int capture_gain = work.score[current_player - 1] - gameDataConst->score[current_player - 1];
-        priority += capture_gain * 20000;
-
-        // double-three extra
-        if (threes_p >= 2) priority += 50000;
-        if (threes_o >= 2) priority -= 50000;
-
-        scored_all[i].position = pos;
-        scored_all[i].score = priority;
-
-        // undo move on work
-        undo_move_inplace(&work, &rec);
-    }
-
-    free(valid);
-
-    // Sort all candidates by score descending
-    qsort(scored_all, n_valid, sizeof(move), compareMovesPriority);
-
-    // Keep only top MAX_CANDIDATES (but at least 1)
-    int keep = n_valid;
-    if (keep > MAX_CANDIDATES) keep = MAX_CANDIDATES;
-    if (keep < 1) keep = 1;
-
-    move *result = (move *)malloc(keep * sizeof(move));
-    if (!result) {
-        perror("malloc failed in getScoredMoves (result)");
-        free(scored_all);
-        *num_moves_out = 0;
-        return NULL;
-    }
-    for (int i = 0; i < keep; ++i) result[i] = scored_all[i];
-
-    free(scored_all);
-    *num_moves_out = keep;
-    return result;
-}
-
-// -----------------------------
-// compareMovesPriority : déjà défini mais on redéfinit guard\n
-// -----------------------------
-int compareMovesPriority(const void *a, const void *b)
-{
-    const move *ma = (const move *)a;
-    const move *mb = (const move *)b;
-    // protection overflow: returns sign value
-    if (ma->score < mb->score) return 1;
-    if (ma->score > mb->score) return -1;
-    return 0;
-}
-
-// -----------------------------
-// Minimax with alpha-beta (inplace moves)
-// - uses make_move_inplace / undo_move_inplace to avoid copies
-// - uses limited move list via getScoredMoves
-// -----------------------------
-int minimax(game *gameData, int depth, int alpha, int beta, bool maximizingPlayer)
-{
-    // terminal checks
-    if (depth <= 0 || gameData->game_over ||
-        gameData->score[0] >= 10 || gameData->score[1] >= 10)
-    {
-        int eval = evaluateBoard(gameData);
-        if (eval >= WINNING_SCORE) return WINNING_SCORE + depth;
-        if (eval <= MIN_SCORE) return MIN_SCORE - depth;
-        return eval;
-    }
-
-    int num_moves = 0;
-    move *moves = getScoredMoves(gameData, &num_moves);
-    if (!moves || num_moves == 0) {
-        if (moves) free(moves);
-        return evaluateBoard(gameData);
-    }
-
-    int best_eval = maximizingPlayer ? MIN_SCORE : WINNING_SCORE;
-    int player = gameData->turn;
-
-    for (int i = 0; i < num_moves; ++i) {
-        vector2 pos = moves[i].position;
-
-        MoveRecord rec;
-        memset(&rec, 0, sizeof(rec));
-
-        // play move in-place
-        bool ok = make_move_inplace(gameData, pos.x, pos.y, player, &rec);
-        if (!ok) continue; // shouldn't happen but safe
-
-        int val = minimax(gameData, depth - 1, alpha, beta, !maximizingPlayer);
-
-        // undo
-        undo_move_inplace(gameData, &rec);
+        if (stop_search) return 0;
 
         if (maximizingPlayer) {
-            if (val > best_eval) best_eval = val;
-            if (best_eval > alpha) alpha = best_eval;
+            if (val > best_val) best_val = val;
+            if (best_val > alpha) alpha = best_val;
         } else {
-            if (val < best_eval) best_eval = val;
-            if (best_eval < beta) beta = best_eval;
+            if (val < best_val) best_val = val;
+            if (best_val < beta) beta = best_val;
         }
-
         if (beta <= alpha) break;
     }
 
-    free(moves);
-    return best_eval;
+    if (!stop_search) {
+        entry->key = key;
+        entry->depth = depth;
+        entry->value = best_val;
+        if (best_val <= alphaOrig) entry->flag = UPPERBOUND;
+        else if (best_val >= beta) entry->flag = LOWERBOUND;
+        else entry->flag = EXACT;
+    }
+
+    return best_val;
 }
 
-// -----------------------------
-// findBestMove: uses inplace moves and getScoredMoves
-// -----------------------------
-move findBestMove(game *gameData, int depth)
-{
-    move best_move;
-    best_move.position.x = -1;
-    best_move.position.y = -1;
-    best_move.score = MIN_SCORE;
+// =========================================================
+// RACINE
+// =========================================================
 
-    int num_moves = 0;
-    move *moves = getScoredMoves(gameData, &num_moves);
-    if (!moves || num_moves == 0) {
-        if (moves) free(moves);
-        return best_move;
+move findBestMove(game *g, int max_depth_limit) {
+    move bestMove = {{-1,-1}, MIN_SCORE};
+    uint64_t key = computeZobrist(g);
+    stop_search = false;
+    clock_gettime(CLOCK_MONOTONIC, &g->ia_timer.start_ts);
+
+    FastMove rootMoves[361];
+    int moveCount = 0;
+    int n = g->board_size;
+    bool visited[19][19] = {false};
+
+    // Génération root
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            if (g->board[y][x] != 0) {
+                for (int dy=-2; dy<=2; dy++) { // Rayon plus large (2) à la racine
+                    for (int dx=-2; dx<=2; dx++) {
+                        int nx=x+dx, ny=y+dy;
+                        if (is_valid_pos(nx, ny, n) && g->board[ny][nx] == 0 && !visited[ny][nx]) {
+                            visited[ny][nx] = true;
+                            rootMoves[moveCount].x = nx;
+                            rootMoves[moveCount].y = ny;
+                            rootMoves[moveCount].score = rateMoveLight(g, nx, ny);
+                            moveCount++;
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    int alpha = MIN_SCORE;
-    int beta = WINNING_SCORE;
-    int player = gameData->turn;
+    if (moveCount == 0) {
+        bestMove.position.x = n/2; bestMove.position.y = n/2; bestMove.score = 0;
+        return bestMove;
+    }
 
-    for (int i = 0; i < num_moves; ++i) {
-        vector2 pos = moves[i].position;
-        MoveRecord rec;
-        memset(&rec, 0, sizeof(rec));
-        if (!make_move_inplace(gameData, pos.x, pos.y, player, &rec)) continue;
+    qsort(rootMoves, moveCount, sizeof(FastMove), compareFastMoves);
 
-        int val = minimax(gameData, depth - 1, alpha, beta, false);
+    // Iterative Deepening
+    int bestMoveIndex = 0;
+    for (int current_depth = 2; current_depth <= max_depth_limit; current_depth += 2) {
+        
+        int alpha = MIN_SCORE;
+        int beta = WINNING_SCORE;
+        int best_val_iter = MIN_SCORE;
+        int best_idx_iter = -1;
 
-        undo_move_inplace(gameData, &rec);
-
-        if (val > best_move.score) {
-            best_move.score = val;
-            best_move.position = pos;
+        // Move Ordering: Essayer le meilleur coup précédent en premier
+        if (current_depth > 2 && bestMoveIndex > 0) {
+            FastMove temp = rootMoves[0];
+            rootMoves[0] = rootMoves[bestMoveIndex];
+            rootMoves[bestMoveIndex] = temp;
         }
 
-        if (best_move.score > alpha) alpha = best_move.score;
-        if (beta <= alpha) break;
+        for (int i = 0; i < moveCount; i++) {
+            MoveRecord rec;
+            if (!make_move_inplace(g, rootMoves[i].x, rootMoves[i].y, g->turn, &rec, &key)) continue;
+
+            int val = minimax(g, current_depth - 1, alpha, beta, false, &key);
+            undo_move_inplace(g, &rec, &key);
+
+            if (stop_search) break;
+
+            if (val > best_val_iter) {
+                best_val_iter = val;
+                best_idx_iter = i;
+            }
+            if (best_val_iter > alpha) alpha = best_val_iter;
+        }
+
+        if (stop_search) break;
+
+        if (best_idx_iter != -1) {
+            bestMoveIndex = best_idx_iter;
+            bestMove.position.x = rootMoves[best_idx_iter].x;
+            bestMove.position.y = rootMoves[best_idx_iter].y;
+            bestMove.score = best_val_iter;
+        }
+        
+        // Si victoire trouvée, on arrête
+        if (best_val_iter >= WINNING_SCORE - 5000) break;
     }
 
-    free(moves);
-    return best_move;
+    return bestMove;
 }

@@ -19,6 +19,9 @@ bool checkArgs(int argc, char **argv, void**args)
 bool initialized(void *args, screen *windows, game *gameData)
 {
     (void) args; // currently unused
+
+    initZobrist();
+
     // Initialize game board to empty
     windows->width = WIDTH;
     windows->height = HEIGHT;
@@ -71,45 +74,40 @@ void makeIaMove(game *gameData, screen *windows)
 {
     printf("IA (Player %d) is thinking...\n", gameData->turn);
     
-    // Définir la profondeur de recherche (à ajuster en fonction de la performance)
-    // 3 est un bon point de départ, 5 est souvent le minimum pour une IA compétitive.
-    const int depth = 3; 
+    // NOUVEAU : On demande une profondeur max très élevée (12).
+    // Le solveur utilise "Iterative Deepening" et s'arrêtera tout seul
+    // quand le temps (0.45s) sera écoulé.
+    const int max_depth_limit = 12; 
     
-    // Lancer le timer pour respecter un temps limite (important !)
+    // On garde le timer ici juste pour l'affichage (le solveur a le sien en interne)
     launchTimer(&gameData->ia_timer);
 
-    // Lancer la recherche Minimax
-    move best_move = findBestMove(gameData, depth);
+    move best_move = findBestMove(gameData, max_depth_limit);
 
     stopTimer(&gameData->ia_timer);
-    printf("IA chose move (%d, %d) with score %d in %.2f seconds.\n", 
+    
+    // Note : best_move.score contient le score du plateau, pas la profondeur atteinte.
+    printf("IA chose move (%d, %d) with score %d in %.3f seconds.\n", 
            best_move.position.x, best_move.position.y, best_move.score, 
            gameData->ia_timer.elapsed);
     
-    // Si un coup valide est trouvé
     if (best_move.position.x != -1)
     {
         int x = best_move.position.x;
         int y = best_move.position.y;
         
-        // 1. Placer la pièce
         gameData->board[y][x] = gameData->turn;
         
-        // 2. Mettre à jour l'affichage
         drawSquare(windows, x, y, gameData->turn);
-        
-        // 3. Vérifier et exécuter les captures (très important !)
         checkPieceCapture(gameData, windows, x, y);
         
-        // 4. DEMANDER le redraw et CHANGER le tour ici !
         windows->changed = true;
-        gameData->turn = (gameData->turn == 1) ? 2 : 1; // Le tour change seulement SI le coup a été joué
+        gameData->turn = (gameData->turn == 1) ? 2 : 1;
     }
     else
     {
-        // Gérer le cas où aucun coup n'est possible (Plateau plein, mais peu probable)
-        printf("IA: No valid moves found.\n");
-        gameData->game_over = true;
+        printf("IA: No valid moves found or Board Full.\n");
+        // Optionnel : gameData->game_over = true;
     }
 }
 

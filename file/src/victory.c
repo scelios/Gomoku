@@ -29,7 +29,7 @@ nRowList getCoordinatesOfNRow(int board[19][19], int player)
 
                 // if (dx == 0 && dy == 0) // defensive : jamais accepter (0,0)
                 //     continue;
-                printf("Checking from (%d, %d) direction (%d, %d)\n", x, y, dx, dy);
+                // printf("Checking from (%d, %d) direction (%d, %d)\n", x, y, dx, dy);
                 int length = 1;
                 rowBuf.coords[0].x = x;
                 rowBuf.coords[0].y = y;
@@ -67,13 +67,12 @@ nRowList getCoordinatesOfNRow(int board[19][19], int player)
     return list;
 }
 
-bool canBeCutAt(int board[19][19], vector2 coord, int player) // returns true if the 5 in a row at (x,y) can be cut
+bool canBeCutAt(int board[19][19], vector2 coord, int player)
 {
-    // check all 8 directions for opponent stones adjacent to coord and own stones on the opposite side
     const int dirs[8][2] = {
         { 1, 0}, { 0, 1}, {-1, 0}, { 0,-1},
         { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
-    };      // all 8 directions
+    };
     int opponent = (player == 1) ? 2 : 1;
 
     for (int d = 0; d < 8; d++)
@@ -81,20 +80,42 @@ bool canBeCutAt(int board[19][19], vector2 coord, int player) // returns true if
         int dx = dirs[d][0];
         int dy = dirs[d][1];
 
-        int x1 = coord.x + dx;
-        int y1 = coord.y + dy;
-        int x2 = coord.x - dx;
-        int y2 = coord.y - dy;
+        int ax = coord.x + dx;      // adjacent in dir: must be ally
+        int ay = coord.y + dy;
+        int bx = coord.x - dx;      // one step behind coord
+        int by = coord.y - dy;
+        int cx = coord.x + 2*dx;    // two steps forward
+        int cy = coord.y + 2*dy;
 
+        if (ax < 0 || ax >= 19 || ay < 0 || ay >= 19) continue;
+        if (bx < 0 || bx >= 19 || by < 0 || by >= 19) continue;
+        if (cx < 0 || cx >= 19 || cy < 0 || cy >= 19) continue;
 
-        if (x1 < 0 || x1 >= 19 || y1 < 0 || y1 >= 19)
+        if (board[ay][ax] != player) continue; // need the second allied stone right next to coord
+
+        // Check that this is EXACTLY a pair (not 3+ in a row)
+        // Look beyond the pair to ensure no third ally
+        int dx3 = coord.x + 3*dx;
+        int dy3 = coord.y + 3*dy;
+        int dxm = coord.x - 2*dx;
+        int dym = coord.y - 2*dy;
+
+        // If within bounds and there's an ally, this is 3+ stones, so can't be cut
+        if ((dx3 >= 0 && dx3 < 19 && dy3 >= 0 && dy3 < 19 && board[dy3][dx3] == player))
             continue;
-        if (x2 < 0 || x2 >= 19 || y2 < 0 || y2 >= 19)
+        if ((dxm >= 0 && dxm < 19 && dym >= 0 && dym < 19 && board[dym][dxm] == player))
             continue;
 
-        if (board[y1][x1] == opponent && board[y2][x2] == player)
+        /* patterns to allow a cut (only for exactly 2 in a row):
+           enemy | coord | ally | empty   (1220)
+           empty | coord | ally | enemy   (0221) */
+        bool forwardCut  = (board[by][bx] == opponent) && (board[cy][cx] == 0);
+        bool reverseCut  = (board[by][bx] == 0)        && (board[cy][cx] == opponent);
+
+        if (forwardCut || reverseCut)
         {
-            // printf("Can be cut at (%d, %d)\n", coord.x, coord.y);
+            printf("Can be cut at (%d, %d)\n", coord.x, coord.y);
+            
             return true;
         }
     }
@@ -133,8 +154,9 @@ void checkVictoryCondition(game *gameData, screen *windows)
             if (canBeCut)
             {
                 printf("Row at index %d can be cut at offset %d (coord %d,%d)\n", i, offset, coord.x, coord.y);
+                drawSquare(windows, coord.x, coord.y, 3); // debug: draw nothing at this coord
                 nCanBeCut++;
-                break;
+                // break;
             }
         }
         i++;
