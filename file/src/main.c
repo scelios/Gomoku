@@ -72,8 +72,7 @@ void resetScreen(screen *windows, int board[19][19])
 
 void makeIaMove(game *gameData, screen *windows)
 {
-    printf("IA (Player %d) is thinking...\n", gameData->turn);
-    
+    // printf("IA (Player %d) is thinking...\n", gameData->turn);
     // NOUVEAU : On demande une profondeur max très élevée (12).
     // Le solveur utilise "Iterative Deepening" et s'arrêtera tout seul
     // quand le temps (0.45s) sera écoulé.
@@ -81,16 +80,16 @@ void makeIaMove(game *gameData, screen *windows)
     
     // On garde le timer ici juste pour l'affichage (le solveur a le sien en interne)
     launchTimer(&gameData->ia_timer);
-
+    
     move best_move = findBestMove(gameData, max_depth_limit);
-
-    stopTimer(&gameData->ia_timer);
+    
+    // stopTimer(&gameData->ia_timer);
     
     // Note : best_move.score contient le score du plateau, pas la profondeur atteinte.
-    printf("IA chose move (%d, %d) with score %d in %.3f seconds.\n", 
-           best_move.position.x, best_move.position.y, best_move.score, 
-           gameData->ia_timer.elapsed);
-    
+    // printf("IA chose move (%d, %d) with score %d in %.3f seconds.\n", 
+    //     best_move.position.x, best_move.position.y, best_move.score, 
+    //     gameData->ia_timer.elapsed);
+    // return ;
     if (best_move.position.x != -1)
     {
         int x = best_move.position.x;
@@ -109,6 +108,7 @@ void makeIaMove(game *gameData, screen *windows)
         printf("IA: No valid moves found or Board Full.\n");
         // Optionnel : gameData->game_over = true;
     }
+    return ;
 }
 
 void gameLoop(void *param)
@@ -117,6 +117,7 @@ void gameLoop(void *param)
     screen      *windows = args->windows;
     game        *gameData = args->gameData;
 
+    // Gestion du redimensionnement
     if (windows->resized)
     {
         windows->resized = false;
@@ -124,13 +125,33 @@ void gameLoop(void *param)
         windows->changed = true;
     }
     
-    // Phase de jeu de l'IA (si c'est son tour)
+    // ====================================================
+    // FIX AFFICHAGE : Retarder l'IA d'une ou deux frames
+    // ====================================================
+    static int frames_to_wait = 0;
+
     if (isIaTurn(gameData->iaTurn, gameData->turn) && !gameData->game_over)
     {
+        // Si c'est au tour de l'IA, on attend que l'affichage du joueur soit passé
+        if (frames_to_wait < 2) 
+        {
+            frames_to_wait++;
+            return; // On rend la main à MLX pour qu'il dessine le coup précédent
+        }
+
+        // Le délai est passé, l'IA réfléchit
         makeIaMove(gameData, windows);
+        
+        // On remet le compteur à 0 pour le prochain tour
+        frames_to_wait = 0;
+    }
+    else
+    {
+        // Si c'est au joueur, on s'assure que le compteur est prêt
+        frames_to_wait = 0;
     }
     
-    // Exécuter les vérifications et redessiner UNIQUEMENT si un coup a été joué/l'état a changé
+    // Le reste ne change pas...
     if (windows->changed)
     {
         checkVictoryCondition(gameData, windows);
