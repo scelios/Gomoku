@@ -96,6 +96,7 @@ typedef struct game {
     bool  game_over;
     timer ia_timer;
     int   score[2];
+    int min_x, max_x, min_y, max_y;
 } game;
 
 // Structure utilisée par l'IA pour annuler les coups
@@ -172,7 +173,7 @@ move    findBestMove(game *gameData, int depth);
 
 // Fonctions d'évaluation (utilisées par le solveur)
 int     evaluateBoard(game *gameData);
-void    countFormations(const game *gameData, int player, int *score_out, int *open_threes);
+void    countFormations(const game *gameData, int player, int *score_out, int *open_threes, int min_x, int max_x, int min_y, int max_y);
 
 // Zobrist & TT
 extern uint64_t zobristTable[19][19][2];

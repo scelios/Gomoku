@@ -65,8 +65,13 @@ void putPiecesOnBoard(screen *windows, int board[19][19])
 
 void resetScreen(screen *windows, int board[19][19])
 {
-    printBlack(windows);
+    // 1. Effacer l'écran (remplir de noir ou texture bois)
+    printBlack(windows); 
+    
+    // 2. Dessiner la grille
     putCadrillage(windows);
+    
+    // 3. Dessiner TOUTES les pièces existantes (C'est ça qui fait apparaître vos fantômes)
     putPiecesOnBoard(windows, board);
 }
 

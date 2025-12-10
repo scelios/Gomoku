@@ -27,46 +27,53 @@ static int compareFastMoves(const void *a, const void *b) {
 static int rateMoveLight(const game *g, int x, int y, int player) {
     int score = 0;
     int n = g->board_size;
-    int center = n / 2;
     int opponent = (player == 1) ? 2 : 1;
 
-    // 1. Centralité (poids faible)
-    score += (n - (abs(x - center) + abs(y - center)));
+    // 1. Centralité (inchangé)
+    score += (n - (abs(x - n/2) + abs(y - n/2)));
 
-    // 2. Proximité immédiate (Attaque/Défense basique)
-    bool has_neighbor = false;
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            if (dx == 0 && dy == 0) continue;
-            int nx = x + dx, ny = y + dy;
-            if (is_valid_pos(nx, ny, n) && g->board[ny][nx] != 0) {
-                has_neighbor = true;
-                score += 50; // On joue collé aux pierres
-            }
-        }
-    }
-    if (!has_neighbor) return 0; // Coup isolé = inutile (sauf premier coup)
-
-    // 3. KILLER HEURISTIC : DÉTECTION DE CAPTURE IMMÉDIATE
-    // Si ce coup capture, on le booste énormément pour le vérifier en premier.
-    // Pattern: X O O [NOUS]
-    int dirs[8][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
+    // 2. Analyse des voisins (AMÉLIORÉE)
+    // On ne regarde pas juste si c'est vide/plein, on regarde si ça forme une ligne.
+    int dirs[4][2] = {{1,0}, {0,1}, {1,1}, {1,-1}};
     
+    for (int d = 0; d < 4; d++) {
+        int dx = dirs[d][0];
+        int dy = dirs[d][1];
+        
+        // On regarde les cases immédiatement adjacentes dans la direction
+        int cell1 = -1, cell2 = -1;
+        if (is_valid_pos(x+dx, y+dy, n)) cell1 = g->board[y+dy][x+dx];
+        if (is_valid_pos(x-dx, y-dy, n)) cell2 = g->board[y-dy][x-dx];
+        
+        // --- ATTAQUE (Nos pierres) ---
+        if (cell1 == player && cell2 == player) score += 200; // On comble un trou O_O
+        else if (cell1 == player || cell2 == player) score += 50; // On étend une ligne
+
+        // --- DÉFENSE (Pierres adverses - CRUCIAL) ---
+        // Si on a X _ X ou X X _, c'est une urgence absolue de bloquer
+        if (cell1 == opponent && cell2 == opponent) score += 15000; // BLOQUER UNE LIGNE IMMÉDIATE !
+        else if (cell1 == opponent || cell2 == opponent) score += 100; // Bloquer une extension
+    }
+
+    // 3. CAPTURES (inchangé)
+    // C'est toujours très important
+    int cap_dirs[8][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
     for (int d = 0; d < 8; ++d) {
-        int dx = dirs[d][0], dy = dirs[d][1];
-        // On regarde dans la direction inverse du vecteur pour voir si on "ferme" une capture
-        // Exemple : NOUS (x,y) <- Opp <- Opp <- NOUS
+        int dx = cap_dirs[d][0], dy = cap_dirs[d][1];
         int x1 = x + dx, y1 = y + dy;
         int x2 = x + 2*dx, y2 = y + 2*dy;
         int x3 = x + 3*dx, y3 = y + 3*dy;
 
         if (is_valid_pos(x3, y3, n)) {
-            // Est-ce qu'on capture l'adversaire ?
+            // Capture offensive (on mange)
             if (g->board[y1][x1] == opponent && 
                 g->board[y2][x2] == opponent && 
                 g->board[y3][x3] == player) {
-                score += 5000; // PRIORITÉ ABSOLUE
+                score += 8000;
             }
+            // Capture défensive (on évite de se faire manger au prochain coup)
+            // Si on joue en x1 pour bloquer une prise adverse... c'est subtil à voir ici,
+            // mais l'heuristique de voisinage (step 2) aide déjà.
         }
     }
 
@@ -143,6 +150,8 @@ static double time_limit_sec = 0.45;
 
 int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint64_t *key_ptr) {
     static int node_check = 0;
+    
+    // Check Time limit
     if ((++node_check & 2047) == 0) {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
@@ -152,9 +161,11 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint
     }
     if (stop_search) return 0;
 
+    // Terminal conditions
     if (g->score[0] >= 10 || g->score[1] >= 10) return evaluateBoard(g);
     if (depth <= 0) return evaluateBoard(g);
 
+    // TT Lookup
     uint64_t key = *key_ptr;
     TTEntry *entry = &transpositionTable[key % TRANSPOSITION_TABLE_SIZE];
     
@@ -165,6 +176,7 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint
         if (alpha >= beta) return entry->value;
     }
 
+    // Move Generation
     FastMove moveList[361]; 
     int moveCount = 0;
     int n = g->board_size;
@@ -173,6 +185,7 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint
     for (int y = 0; y < n; y++) {
         for (int x = 0; x < n; x++) {
             if (g->board[y][x] != 0) {
+                // Rayon réduit (1) dans l'arbre pour speeder
                 for (int dy = -1; dy <= 1; dy++) {
                     for (int dx = -1; dx <= 1; dx++) {
                         int nx = x + dx, ny = y + dy;
@@ -191,41 +204,67 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint
         }
     }
 
-    if (moveCount == 0) {
-        if (g->board[n/2][n/2] == 0) return evaluateBoard(g); 
-        return evaluateBoard(g);
-    }
+    if (moveCount == 0) return evaluateBoard(g);
 
     qsort(moveList, moveCount, sizeof(FastMove), compareFastMoves);
 
+    // =============================================================
+    // 1. DYNAMIC BRANCHING (PRUNING)
+    // =============================================================
+    int max_branches;
+    if (depth >= 8) max_branches = 15; // Un peu plus strict pour la vitesse
+    else if (depth >= 5) max_branches = 10;
+    else if (depth >= 3) max_branches = 6;
+    else max_branches = 4;
+
+    // SÉCURITÉ : Ne jamais ignorer un coup qui semble vital (score > 1000)
+    // On parcourt la liste pour voir combien de coups sont "dangereux"
+    int urgent_moves = 0;
+    for (int k = 0; k < moveCount; k++) {
+        if (moveList[k].score > 1000) urgent_moves++;
+        else break; // Comme c'est trié, on peut arrêter
+    }
+    
+    // Si on a beaucoup de coups urgents, on force l'IA à les regarder tous
+    if (urgent_moves > max_branches) max_branches = urgent_moves;
+
+    // Plafond absolu pour ne pas exploser (par exemple 40)
+    if (max_branches > 40) max_branches = 40;
+
+    int branches = (moveCount > max_branches) ? max_branches : moveCount;
     int best_val = maximizingPlayer ? MIN_SCORE : WINNING_SCORE;
     int alphaOrig = alpha;
     int player = g->turn;
-    
-// =============================================================
-    // DYNAMIC BRANCHING (PRUNING AGRESSIF SELON LA PROFONDEUR)
-    // =============================================================
-    // Plus on est proche des feuilles (depth petit), moins on regarde de coups.
-    // Cela permet de descendre très profond sur les coups principaux.
-    
-    int max_branches;
-    
-    if (depth >= 8)      max_branches = 20; // Au début de la recherche (haut de l'arbre), on est large
-    else if (depth >= 5) max_branches = 12; // Milieu de partie
-    else if (depth >= 3) max_branches = 8;  // On commence à filtrer sévèrement
-    else                 max_branches = 5;  // Aux feuilles, on ne regarde que l'essentiel (Top 5)
-
-    // Si on est en situation d'échec/capture critique (score élevé), 
-    // on élargit un peu pour ne pas rater la défense.
-    if (moveList[0].score > 1000) max_branches += 4;
-
-    int branches = (moveCount > max_branches) ? max_branches : moveCount;
 
     for (int i = 0; i < branches; i++) {
         MoveRecord rec;
         if (!make_move_inplace(g, moveList[i].x, moveList[i].y, player, &rec, &key)) continue;
 
-        int val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, &key);
+        int val;
+        bool needs_full_search = true;
+
+        // =============================================================
+        // 2. LMR (LATE MOVE REDUCTION)
+        // =============================================================
+        // Si on est profond, pas sur les 4 meilleurs coups, et coup pas tactique
+        if (depth >= 3 && i >= 4 && moveList[i].score < 4000) {
+            int reduction = 1;
+            // Recherche avec fenêtre nulle (Null Window Search)
+            // On vérifie juste si val > alpha sans chercher la valeur exacte
+            val = minimax(g, depth - 1 - reduction, alpha, alpha + 1, !maximizingPlayer, &key);
+
+            if (stop_search) return 0;
+
+            // Si le résultat ne bat pas alpha, la réduction était bonne, on garde ce score.
+            // Sinon (val > alpha), le coup est meilleur que prévu, il faut re-chercher à fond.
+            if (maximizingPlayer && val <= alpha) needs_full_search = false;
+            else if (!maximizingPlayer && val >= beta) needs_full_search = false;
+        }
+
+        if (needs_full_search) {
+            val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, &key);
+        }
+
         undo_move_inplace(g, &rec, &key);
 
         if (stop_search) return 0;
@@ -255,31 +294,40 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint
 // =========================================================
 // FIND BEST MOVE (AVEC DEBUG PRINT)
 // =========================================================
-
 move findBestMove(game *g, int max_depth_limit) {
     move bestMove = {{-1,-1}, MIN_SCORE};
-    uint64_t key = computeZobrist(g);
+    
+    // =========================================================
+    // 1. CRÉATION DE LA SANDBOX (COPIE DE SÉCURITÉ)
+    // =========================================================
+    game sandbox_game = *g; 
+    
+    // Initialisation Zobrist sur la copie
+    uint64_t key = computeZobrist(&sandbox_game);
+    
+    // Initialisation Timer SUR LA COPIE (car minimax lira sandbox_game)
     stop_search = false;
-    clock_gettime(CLOCK_MONOTONIC, &g->ia_timer.start_ts);
+    clock_gettime(CLOCK_MONOTONIC, &sandbox_game.ia_timer.start_ts);
 
-    // 1. Génération et tri initial des coups
+    // =========================================================
+    // 2. GÉNÉRATION DES COUPS (RACINE) SUR SANDBOX
+    // =========================================================
     FastMove rootMoves[361];
     int moveCount = 0;
-    int n = g->board_size;
+    int n = sandbox_game.board_size;
     bool visited[19][19] = {false};
 
     for (int y = 0; y < n; y++) {
         for (int x = 0; x < n; x++) {
-            if (g->board[y][x] != 0) {
-                // Rayon large à la racine (2 cases)
+            if (sandbox_game.board[y][x] != 0) {
                 for (int dy=-2; dy<=2; dy++) {
                     for (int dx=-2; dx<=2; dx++) {
                         int nx=x+dx, ny=y+dy;
-                        if (is_valid_pos(nx, ny, n) && g->board[ny][nx] == 0 && !visited[ny][nx]) {
+                        if (is_valid_pos(nx, ny, n) && sandbox_game.board[ny][nx] == 0 && !visited[ny][nx]) {
                             visited[ny][nx] = true;
                             rootMoves[moveCount].x = nx;
                             rootMoves[moveCount].y = ny;
-                            rootMoves[moveCount].score = rateMoveLight(g, nx, ny, g->turn);
+                            rootMoves[moveCount].score = rateMoveLight(&sandbox_game, nx, ny, sandbox_game.turn);
                             moveCount++;
                         }
                     }
@@ -296,110 +344,111 @@ move findBestMove(game *g, int max_depth_limit) {
     qsort(rootMoves, moveCount, sizeof(FastMove), compareFastMoves);
 
     int bestMoveIndex = 0;
-    int previous_score = 0; // Pour l'Aspiration Window
+    int previous_score = 0;
 
-    // --- ITERATIVE DEEPENING LOOP ---
+    // =========================================================
+    // 3. BOUCLE ITERATIVE DEEPENING (ID)
+    // =========================================================
     for (int current_depth = 2; current_depth <= max_depth_limit; current_depth += 2) {
         
-        // Optimisation ROOT PRUNING :
-        // Si on est profond, inutile de regarder les 200 coups possibles.
-        // Les 40 premiers suffisent largement (car ils sont triés).
+        // Root Pruning: On ne regarde que les 40 meilleurs coups à haute profondeur
         int moves_to_scan = moveCount;
         if (current_depth >= 6 && moves_to_scan > 40) moves_to_scan = 40;
 
         int alpha = MIN_SCORE;
         int beta = WINNING_SCORE;
         
-        // ASPIRATION WINDOWS LOGIC
-        // On suppose que le score sera : previous_score +/- window
-        // Cela réduit drastiquement la zone de recherche.
-        bool use_aspiration = (current_depth >= 6); // On active seulement si stable
+        // Aspiration Windows logic
+        bool use_aspiration = (current_depth >= 6);
         int window = 400; 
-        
         if (use_aspiration) {
             alpha = previous_score - window;
             beta  = previous_score + window;
         }
 
-        // Boucle de tentative (permet de relancer si l'Aspiration Window échoue)
         bool research_needed = true;
         
+        // Boucle de "Re-search" en cas d'échec de l'Aspiration Window
         while (research_needed) {
-            research_needed = false; // Par défaut, on suppose que ça va marcher
+            research_needed = false;
             
             int best_val_iter = MIN_SCORE;
             int best_idx_iter = -1;
 
-            // Move Ordering : Meilleur coup précédent en premier
+            // Move Ordering: Mettre le meilleur coup précédent en premier
             if (current_depth > 2 && bestMoveIndex > 0 && bestMoveIndex < moves_to_scan) {
                 FastMove temp = rootMoves[0];
                 rootMoves[0] = rootMoves[bestMoveIndex];
                 rootMoves[bestMoveIndex] = temp;
             }
 
+            // --- SCAN DES COUPS ---
             for (int i = 0; i < moves_to_scan; i++) {
                 MoveRecord rec;
-                if (!make_move_inplace(g, rootMoves[i].x, rootMoves[i].y, g->turn, &rec, &key)) continue;
+                
+                // ACTION SUR LA SANDBOX
+                if (!make_move_inplace(&sandbox_game, rootMoves[i].x, rootMoves[i].y, sandbox_game.turn, &rec, &key)) continue;
 
-                int val = minimax(g, current_depth - 1, alpha, beta, false, &key);
-                undo_move_inplace(g, &rec, &key);
+                // APPEL MINIMAX SUR LA SANDBOX
+                int val = minimax(&sandbox_game, current_depth - 1, alpha, beta, false, &key);
+                
+                // UNDO SUR LA SANDBOX
+                undo_move_inplace(&sandbox_game, &rec, &key);
 
-                if (stop_search) break;
+                if (stop_search) break; // Sortie immédiate de la boucle for
 
                 if (val > best_val_iter) {
                     best_val_iter = val;
                     best_idx_iter = i;
                 }
                 
-                // Mise à jour de Alpha (classique)
                 if (best_val_iter > alpha) alpha = best_val_iter;
                 
-                // Si on dépasse Beta (Fail High) dans une fenêtre réduite, 
-                // c'est que notre prédiction était mauvaise -> on doit ré-élargir.
+                // FAIL HIGH (Beta Cutoff dans Aspiration)
                 if (use_aspiration && best_val_iter >= beta) {
-                    // printf(">> Aspiration Fail High at depth %d (Score %d > %d). Re-searching...\n", current_depth, best_val_iter, beta);
                     use_aspiration = false;
                     alpha = MIN_SCORE;
                     beta = WINNING_SCORE;
-                    research_needed = true; // On relance la boucle while
-                    break; 
+                    research_needed = true; 
+                    break; // On casse la boucle for pour relancer le while
                 }
             }
             
-            if (stop_search) break;
+            // Si timeout pendant la boucle for
+            if (stop_search) break; 
 
-            // Si le meilleur score est inférieur à notre fenêtre (Fail Low),
-            // c'est qu'on a surestimé la position -> on doit ré-élargir.
+            // FAIL LOW (Alpha Cutoff dans Aspiration)
             if (!research_needed && use_aspiration && best_val_iter <= (previous_score - window)) {
-                // printf(">> Aspiration Fail Low at depth %d. Re-searching...\n", current_depth);
                 use_aspiration = false;
                 alpha = MIN_SCORE;
                 beta = WINNING_SCORE;
                 research_needed = true;
-                continue;
+                continue; // On relance le while
             }
 
-            // Si on arrive ici, le résultat est valide
+            // Si recherche réussie (pas de timeout, résultats valides)
             if (best_idx_iter != -1) {
-                printf(">> Depth %d completed. Move: (%d, %d) Score: %d\n", current_depth, rootMoves[best_idx_iter].x, rootMoves[best_idx_iter].y, best_val_iter);
+                printf(">> Depth %d completed. Move: (%d, %d) Score: %d\n", 
+                       current_depth, rootMoves[best_idx_iter].x, rootMoves[best_idx_iter].y, best_val_iter);
+                
                 previous_score = best_val_iter;
                 bestMoveIndex = best_idx_iter;
                 bestMove.position.x = rootMoves[best_idx_iter].x;
                 bestMove.position.y = rootMoves[best_idx_iter].y;
                 bestMove.score = best_val_iter;
             }
-        }
+        } // Fin While (Research)
 
         if (stop_search) {
             printf(">> TIMEOUT reached while searching Depth %d\n", current_depth);
-            break;
+            break; // On sort de la boucle Iterative Deepening
         }
 
         if (previous_score >= WINNING_SCORE - 5000) {
             printf(">> Winning move found at Depth %d!\n", current_depth);
             break;
         }
-    }
+    } // Fin For (Iterative Deepening)
 
     return bestMove;
 }

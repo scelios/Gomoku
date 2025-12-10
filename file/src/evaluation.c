@@ -34,7 +34,7 @@ static bool has_gapped_four(const game *g, int player, int cx, int cy, int dx, i
 
 // countFormations: scans the board for sequences for 'player'
 // Writes a formation score (sum of pattern weights) into *score_out and number of open threes into *open_threes
-void countFormations(const game *gameData, int player, int *score_out, int *open_threes)
+void countFormations(const game *gameData, int player, int *score_out, int *open_threes, int min_x, int max_x, int min_y, int max_y)
 {
     if (score_out) *score_out = 0;
     if (open_threes) *open_threes = 0;
@@ -47,8 +47,8 @@ void countFormations(const game *gameData, int player, int *score_out, int *open
     // To avoid double counting contiguous sequences multiple times, we will only start a scan from
     // cells that are the "beginning" of a consecutive run in that direction (previous cell != player)
 
-    for (int y = 0; y < n; ++y) {
-        for (int x = 0; x < n; ++x) {
+    for (int y = min_y; y <= max_y; ++y) {
+        for (int x = min_x; x <= max_x; ++x) {
             if (gameData->board[y][x] != player) continue;
 
             for (int d = 0; d < 4; ++d) {
@@ -132,12 +132,36 @@ int evaluateBoard(game *gameData)
     if (gameData->score[current_player - 1] >= 10) return WINNING_SCORE;
     if (gameData->score[opponent - 1] >= 10) return MIN_SCORE;
 
-    // Formation scores
+    int min_x = 19, max_x = 0, min_y = 19, max_y = 0;
+    bool empty = true;
+    
+    // On scanne pour réduire la zone de recherche des patterns
+    for (int y=0; y<19; y++) {
+        for (int x=0; x<19; x++) {
+            if (gameData->board[y][x] != 0) {
+                if (x < min_x) min_x = x;
+                if (x > max_x) max_x = x;
+                if (y < min_y) min_y = y;
+                if (y > max_y) max_y = y;
+                empty = false;
+            }
+        }
+    }
+    
+    if (empty) return 0;
+
+    // Ajouter une marge de sécurité pour les alignements potentiels
+    min_x = (min_x - 4 < 0) ? 0 : min_x - 4;
+    max_x = (max_x + 4 > 18) ? 18 : max_x + 4;
+    min_y = (min_y - 4 < 0) ? 0 : min_y - 4;
+    max_y = (max_y + 4 > 18) ? 18 : max_y + 4;
+
+        // Formation scores
     int score_p = 0, threes_p = 0;
     int score_o = 0, threes_o = 0;
 
-    countFormations(gameData, current_player, &score_p, &threes_p);
-    countFormations(gameData, opponent, &score_o, &threes_o);
+    countFormations(gameData, current_player, &score_p, &threes_p, min_x, max_x, min_y, max_y);
+    countFormations(gameData, opponent, &score_o, &threes_o, min_x, max_x, min_y, max_y);
 
     // Immediate five-in-row terminal
     if (score_p >= F_FIVE) return WINNING_SCORE;
@@ -163,9 +187,11 @@ int evaluateBoard(game *gameData)
     // compute a small penalty based on sum of distances of stones from center for current player minus opponent
     int center = gameData->board_size / 2;
     long center_score = 0;
-    for (int y = 0; y < gameData->board_size; ++y) {
-        for (int x = 0; x < gameData->board_size; ++x) {
+    for (int y = min_y; y <= max_y; ++y) {
+        for (int x = min_x; x <= max_x; ++x) {
             int v = gameData->board[y][x];
+            if (v == 0) continue; // Skip vide rapidement
+            
             if (v == current_player) {
                 int dx = x - center; int dy = y - center;
                 center_score += ( (gameData->board_size - (abs(dx) + abs(dy))) );
@@ -182,3 +208,4 @@ int evaluateBoard(game *gameData)
     if (formation_score < MIN_SCORE) return MIN_SCORE + 1;
     return (int)formation_score;
 }
+
