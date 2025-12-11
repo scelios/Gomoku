@@ -1,6 +1,6 @@
 NAME	:= gomoku
 # CFLAGS	:= -Wextra -Wall -Werror -Ofast -g -DDEBUG=1
-CFLAGS	:= -Ofast -g -DDEBUG=1
+CFLAGS	:= -O3 -march=native
 LIBMLX	:= ./file/MLX42
 INCDIR = includes
 LGLFW_PATH := /usr/lib/x86_64-linux-gnu/libglfw.so

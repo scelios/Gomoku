@@ -34,22 +34,38 @@
 #define MAX_ROW_LENGTH 10
 #define MAX_NROWS 200
 
+#define BUTTON_X 10
+#define BUTTON_Y 5
+#define BUTTON_WIDTH 60
+#define BUTTON_HEIGHT 20
+
 // ============================
 // AI Constants
 // ============================
-#define WINNING_SCORE 10000000
+#define SEARCH_RADIUS 3          // Rayon de recherche autour des pierres
+#define MAX_CAPTURED_STONES 16   // Sécurité
+
 #define MAX_SCORE (WINNING_SCORE - 1)
 #define MIN_SCORE (-WINNING_SCORE + 1)
 
-#define SEARCH_RADIUS 2          // Rayon de recherche autour des pierres
-#define MAX_CAPTURED_STONES 16   // Sécurité
 
-// Heuristique patterns
-#define F_THREE_OPEN 10
-#define F_THREE_HALF_OPEN 5
-#define F_FOUR_OPEN 100
-#define F_FOUR_HALF_OPEN 50
-#define F_FIVE 10000000
+// ============================
+// Formation heuristics (RÉÉQUILIBRAGE AGRESSIF)
+// ============================
+// Une menace de victoire doit toujours être supérieure à une capture (150 000)
+
+#define WINNING_SCORE 1000000000
+
+#define F_FIVE           100000000 
+#define F_FOUR_OPEN       50000000 
+#define F_FOUR_HALF_OPEN  10000000 
+
+// Augmentez encore celui-ci. Un 3 ouvert, c'est la mort assurée contre un bon joueur.
+#define F_THREE_OPEN      20000000 
+
+#define F_THREE_HALF_OPEN   100000 
+#define F_TWO_OPEN            5000 
+#define F_TWO_HALF_OPEN        100
 
 // Transposition Table
 #define ZOBRIST_TABLE_SIZE 19*19*2
@@ -127,11 +143,6 @@ typedef struct rowCoordinates
     int length;       // length of the row
 } rowCoordinates;
 
-typedef struct nRowList
-{
-    rowCoordinates rows[MAX_NROWS]; // max rows of 5 or more
-} nRowList;
-
 // Structure de retour simple pour l'IA
 typedef struct move {
     vector2 position;
@@ -160,9 +171,11 @@ bool    isIaTurn(int iaTurn, int turn);
 game    copyGameData(const game *source);
 
 void    printInformation(screen *windows, game *gameData);
-bool    in_bounds(int x, int y, int n);
+// bool    in_bounds(int x, int y, int n);
 void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
 void    checkVictoryCondition(game *gameData, screen *windows);
+void    resetGame(game *gameData, screen *windows);
+void    drawReplayButton(screen *windows);
 
 // ============================
 // AI Interfaces (Cleaned)

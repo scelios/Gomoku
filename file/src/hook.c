@@ -21,7 +21,7 @@ void	resize(int32_t width, int32_t height, void *param)
     windows->img = mlx_new_image(windows->mlx, width, height);
     if (!windows->img)
     {
-        fprintf(stderr, "mlx_new_image failed in resize\n");
+        // fprintf(stderr, "mlx_new_image failed in resize\n");
         mlx_close_window(windows->mlx);
         return;
     }
@@ -50,7 +50,7 @@ void	keyhook(mlx_key_data_t keydata, void *param)
 
     if (keydata.key == MLX_KEY_ESCAPE && keydata.action == MLX_PRESS)
     {
-        printf("Escape key pressed, closing window.\n");
+        // printf("Escape key pressed, closing window.\n");
         mlx_close_window(windows->mlx);
     }
     if (keydata.key == MLX_KEY_SPACE && keydata.action == MLX_PRESS)
@@ -97,7 +97,7 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
     {
         if (!gameData->game_over && gameData->board[cell_y][cell_x] == 0)
         {
-            printf("Placing piece for player %d at (%d, %d)\n", gameData->turn, cell_x, cell_y);
+            // printf("Placing piece for player %d at (%d, %d)\n", gameData->turn, cell_x, cell_y);
             gameData->board[cell_y][cell_x] = gameData->turn;
             /* check captures caused BY this new stone only */
             checkPieceCapture(gameData, windows, cell_x, cell_y);

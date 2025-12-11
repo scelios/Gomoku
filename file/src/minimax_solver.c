@@ -29,34 +29,44 @@ static int rateMoveLight(const game *g, int x, int y, int player) {
     int n = g->board_size;
     int opponent = (player == 1) ? 2 : 1;
 
-    // 1. Centralité (inchangé)
-    score += (n - (abs(x - n/2) + abs(y - n/2)));
-
-    // 2. Analyse des voisins (AMÉLIORÉE)
-    // On ne regarde pas juste si c'est vide/plein, on regarde si ça forme une ligne.
+    // Directions
     int dirs[4][2] = {{1,0}, {0,1}, {1,1}, {1,-1}};
     
     for (int d = 0; d < 4; d++) {
-        int dx = dirs[d][0];
-        int dy = dirs[d][1];
+        int dx = dirs[d][0], dy = dirs[d][1];
         
-        // On regarde les cases immédiatement adjacentes dans la direction
-        int cell1 = -1, cell2 = -1;
-        if (is_valid_pos(x+dx, y+dy, n)) cell1 = g->board[y+dy][x+dx];
-        if (is_valid_pos(x-dx, y-dy, n)) cell2 = g->board[y-dy][x-dx];
-        
-        // --- ATTAQUE (Nos pierres) ---
-        if (cell1 == player && cell2 == player) score += 200; // On comble un trou O_O
-        else if (cell1 == player || cell2 == player) score += 50; // On étend une ligne
+        // Scan Voisins immédiats (1 case)
+        int c1 = -1, c2 = -1;
+        if (is_valid_pos(x+dx, y+dy, n)) c1 = g->board[y+dy][x+dx];
+        if (is_valid_pos(x-dx, y-dy, n)) c2 = g->board[y-dy][x-dx];
 
-        // --- DÉFENSE (Pierres adverses - CRUCIAL) ---
-        // Si on a X _ X ou X X _, c'est une urgence absolue de bloquer
-        if (cell1 == opponent && cell2 == opponent) score += 15000; // BLOQUER UNE LIGNE IMMÉDIATE !
-        else if (cell1 == opponent || cell2 == opponent) score += 100; // Bloquer une extension
+        // Scan Voisins distants (2 cases) - Pour voir les trous .X.X.
+        int f1 = -1, f2 = -1;
+        if (is_valid_pos(x+2*dx, y+2*dy, n)) f1 = g->board[y+2*dy][x+2*dx];
+        if (is_valid_pos(x-2*dx, y-2*dy, n)) f2 = g->board[y-2*dy][x-2*dx];
+
+        // --- ATTAQUE (Nos pierres) ---
+        if (c1 == player && c2 == player) score += 1000; // Créer un 3 ou boucher un 4
+        else if (c1 == player || c2 == player) score += 200;
+
+        // --- DÉFENSE (PRIORITÉ ABSOLUE) ---
+        
+        // 1. Bloquer un 4 potentiel (XXX_)
+        // Motif : [Opp][Opp] ou [Opp]...[Opp]
+        if (c1 == opponent && c2 == opponent) score += 1000000; // BLOQUER IMMÉDIATEMENT (XXX)
+        
+        // 2. Bloquer un 3 potentiel (XX_)
+        // Motif : [Opp] et [Opp] un peu plus loin (X.X)
+        if ((c1 == opponent && f1 == opponent) || (c2 == opponent && f2 == opponent)) score += 500000;
+        
+        // 3. Bloquer un 3 potentiel collé (XX)
+        if (c1 == opponent || c2 == opponent) score += 10000;
+
+        // 4. Défense Bordure
+        if ((c1 == -1 && c2 == opponent) || (c2 == -1 && c1 == opponent)) score += 50000;
     }
 
-    // 3. CAPTURES (inchangé)
-    // C'est toujours très important
+    // 3. CAPTURES (inchangé, c'est vital)
     int cap_dirs[8][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
     for (int d = 0; d < 8; ++d) {
         int dx = cap_dirs[d][0], dy = cap_dirs[d][1];
@@ -65,15 +75,11 @@ static int rateMoveLight(const game *g, int x, int y, int player) {
         int x3 = x + 3*dx, y3 = y + 3*dy;
 
         if (is_valid_pos(x3, y3, n)) {
-            // Capture offensive (on mange)
             if (g->board[y1][x1] == opponent && 
                 g->board[y2][x2] == opponent && 
                 g->board[y3][x3] == player) {
-                score += 8000;
+                score += 10000; // Capture offensive
             }
-            // Capture défensive (on évite de se faire manger au prochain coup)
-            // Si on joue en x1 pour bloquer une prise adverse... c'est subtil à voir ici,
-            // mais l'heuristique de voisinage (step 2) aide déjà.
         }
     }
 
@@ -212,7 +218,7 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, uint
     // 1. DYNAMIC BRANCHING (PRUNING)
     // =============================================================
     int max_branches;
-    if (depth >= 8) max_branches = 15; // Un peu plus strict pour la vitesse
+    if (depth >= 8) max_branches = 25; // Un peu plus strict pour la vitesse
     else if (depth >= 5) max_branches = 10;
     else if (depth >= 3) max_branches = 6;
     else max_branches = 4;

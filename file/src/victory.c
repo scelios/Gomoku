@@ -1,169 +1,155 @@
 #include "../include/gomoku.h"
-#include <string.h>
 
+// Helper : Vérifie les limites
+static inline bool is_valid(int x, int y) {
+    return (x >= 0 && x < 19 && y >= 0 && y < 19);
+}
 
-
-// returns list of coordinates of the 5 in a row found on the board for the given player
-nRowList getCoordinatesOfNRow(int board[19][19], int player)
+// Vérifie si une pierre située en (x, y) est "prenable" (fait partie d'une paire capturable)
+// Cette fonction regarde dans les 8 directions si la pierre est impliquée dans un schéma :
+// [ENNEMI] [ALLIÉ(x,y)] [ALLIÉ] [VIDE]  (Menace de capture sur le vide)
+// ou [VIDE] [ALLIÉ] [ALLIÉ(x,y)] [ENNEMI]
+bool isStoneCapturable(int board[19][19], int x, int y, int player)
 {
-    nRowList list;
-    memset(&list, 0, sizeof(list)); // set all to zero
-    int nRowIndex = 0;
-    const int dirs[4][2] = {
-        {1, 0}, // horizontal -
-        {0, 1}, // vertical |
-        {1, 1}, // diagonal 
-        {1, -1} // diagonal /
-    };
-    rowCoordinates rowBuf;
+    int opponent = (player == 1) ? 2 : 1;
+    
+    // Les 4 axes (Horizontal, Vertical, Diag1, Diag2)
+    // On vérifie les deux sens pour chaque axe, donc 8 directions implicites
+    int dirs[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+
+    for (int d = 0; d < 4; d++)
+    {
+        int dx = dirs[d][0];
+        int dy = dirs[d][1];
+
+        // On regarde autour de la pierre (x,y) sur l'axe donné
+        // On cherche le pattern : O A A _  ou  _ A A O
+        // La pierre (x,y) peut être le premier A ou le deuxième A.
+        
+        // Positions relatives : P_prev2, P_prev1, [P_curr], P_next1, P_next2
+        
+        // Check forward : (x,y) est le premier de la paire ? [x,y] [Ally]
+        int nx = x + dx, ny = y + dy;       // Next (Ally?)
+        int nnx = x + 2*dx, nny = y + 2*dy; // NextNext (Empty/Enemy?)
+        int px = x - dx, py = y - dy;       // Prev (Empty/Enemy?)
+
+        if (is_valid(nx, ny) && board[ny][nx] == player) 
+        {
+            // On a une paire : [x,y] - [nx,ny]
+            // Cas 1 : Ennemi derrière, Vide devant => [Opp] [P] [P] [_]
+            if (is_valid(px, py) && board[py][px] == opponent &&
+                is_valid(nnx, nny) && board[nny][nnx] == 0) return true;
+                
+            // Cas 2 : Vide derrière, Ennemi devant => [_] [P] [P] [Opp]
+            if (is_valid(px, py) && board[py][px] == 0 &&
+                is_valid(nnx, nny) && board[nny][nnx] == opponent) return true;
+        }
+
+        // Check backward : (x,y) est le deuxième de la paire ? [Ally] [x,y]
+        // C'est redondant si on scanne tout le plateau, mais nécessaire si on scanne juste une ligne
+        int b_px = x - dx, b_py = y - dy;       // Prev (Ally?)
+        int b_ppx = x - 2*dx, b_ppy = y - 2*dy; // PrevPrev (Empty/Enemy?)
+        int b_nx = x + dx, b_ny = y + dy;       // Next (Empty/Enemy?)
+
+        if (is_valid(b_px, b_py) && board[b_py][b_px] == player)
+        {
+            // On a une paire : [b_px,b_py] - [x,y]
+            // Cas 1 : Ennemi derrière la paire, Vide devant
+            if (is_valid(b_ppx, b_ppy) && board[b_ppy][b_ppx] == opponent &&
+                is_valid(b_nx, b_ny) && board[b_ny][b_nx] == 0) return true;
+
+            // Cas 2 : Vide derrière, Ennemi devant
+            if (is_valid(b_ppx, b_ppy) && board[b_ppy][b_ppx] == 0 &&
+                is_valid(b_nx, b_ny) && board[b_ny][b_nx] == opponent) return true;
+        }
+    }
+    return false;
+}
+
+// Vérifie si une ligne gagnante (5+) contient une pierre capturable
+// Si oui, la victoire est annulée (temporairement).
+bool isWinningLineBreakable(int board[19][19], int start_x, int start_y, int dx, int dy, int length, int player)
+{
+    // On parcourt chaque pierre de l'alignement
+    for (int i = 0; i < length; i++)
+    {
+        int cx = start_x + i * dx;
+        int cy = start_y + i * dy;
+
+        // Si UNE SEULE pierre de la ligne peut être capturée, la ligne est "cassable"
+        if (isStoneCapturable(board, cx, cy, player))
+        {
+            // printf("Winning line interrupted: stone at (%d, %d) is capturable!\n", cx, cy);
+            return true; // Breakable
+        }
+    }
+    return false; // Unbreakable
+}
+
+void checkVictoryCondition(game *gameData, screen *windows)
+{
+    // 1. Victoire par Capture (10 pierres = 5 paires)
+    // Note : score stocke le nombre de paires
+    if (gameData->score[0] >= 5 || gameData->score[1] >= 5)
+    {
+        printf("Victory by capture (10 stones)!\n");
+        gameData->game_over = true;
+        return;
+    }
+
+    // 2. Victoire par Alignement (5+)
+    int player = gameData->turn;
+    int dirs[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+    
+    // Matrice pour éviter de recompter les mêmes lignes (optimisation)
+    // On ne scanne que dans le sens "positif"
+    
     for (int y = 0; y < 19; y++)
     {
         for (int x = 0; x < 19; x++)
         {
-            if (board[y][x] != player)
-                continue;
+            if (gameData->board[y][x] != player) continue;
+
             for (int d = 0; d < 4; d++)
             {
                 int dx = dirs[d][0];
                 int dy = dirs[d][1];
 
-                // if (dx == 0 && dy == 0) // defensive : jamais accepter (0,0)
-                //     continue;
-                // printf("Checking from (%d, %d) direction (%d, %d)\n", x, y, dx, dy);
-                int length = 1;
-                rowBuf.coords[0].x = x;
-                rowBuf.coords[0].y = y;
-                rowBuf.length = 1;
-                int nx = x + dx;
-                int ny = y + dy;
-                while (nx >= 0 && nx < 19 && ny >= 0 && ny < 19 && board[ny][nx] == player && length < 19)
+                // Optimisation: si la pierre précédente était du même joueur, 
+                // alors cette pierre a déjà été comptée dans la boucle précédente.
+                int px = x - dx, py = y - dy;
+                if (is_valid(px, py) && gameData->board[py][px] == player) continue;
+
+                // On compte la longueur de la ligne à partir d'ici
+                int length = 0;
+                int tx = x, ty = y;
+                while (is_valid(tx, ty) && gameData->board[ty][tx] == player)
                 {
-                    rowBuf.coords[length].x = nx;
-                    rowBuf.coords[length].y = ny;
                     length++;
-                    nx += dx;
-                    ny += dy;
+                    tx += dx;
+                    ty += dy;
                 }
+
                 if (length >= 5)
                 {
-                    rowBuf.length = length;
-                    list.rows[nRowIndex] = rowBuf;
-                    nRowIndex++;
-                    if (nRowIndex >= MAX_NROWS) // max rows
-                        break;
+                    // Ligne de 5 trouvée !
+                    // Est-elle cassable ? (Contient-elle une pierre capturable ?)
+                    if (!isWinningLineBreakable(gameData->board, x, y, dx, dy, length, player))
+                    {
+                        // Si elle n'est PAS cassable, c'est gagné
+                        printf("Victory by alignment! (%d in a row)\n", length);
+                        gameData->game_over = true;
+                        
+                        // Optionnel : Dessiner ou marquer la ligne gagnante ici
+                        return;
+                    }
+                    else
+                    {
+                        // printf("Alignment of %d found but it can be broken by capture.\n", length);
+                        // On continue la partie, l'adversaire DOIT capturer au prochain tour sinon il perd.
+                    }
                 }
             }
         }
-        if (nRowIndex >= MAX_NROWS) // max rows
-            break;
-    }
-    if (nRowIndex < MAX_NROWS) {
-        list.rows[nRowIndex].coords[0].x = -1; // end of list
-        list.rows[nRowIndex].coords[0].y = -1;
-    } else {
-        list.rows[MAX_NROWS-1].coords[0].x = -1;
-        list.rows[MAX_NROWS-1].coords[0].y = -1;
-    }
-    return list;
-}
-
-bool canBeCutAt(int board[19][19], vector2 coord, int player)
-{
-    const int dirs[8][2] = {
-        { 1, 0}, { 0, 1}, {-1, 0}, { 0,-1},
-        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
-    };
-    int opponent = (player == 1) ? 2 : 1;
-
-    for (int d = 0; d < 8; d++)
-    {
-        int dx = dirs[d][0];
-        int dy = dirs[d][1];
-
-        int ax = coord.x + dx;      // adjacent in dir: must be ally
-        int ay = coord.y + dy;
-        int bx = coord.x - dx;      // one step behind coord
-        int by = coord.y - dy;
-        int cx = coord.x + 2*dx;    // two steps forward
-        int cy = coord.y + 2*dy;
-
-        if (ax < 0 || ax >= 19 || ay < 0 || ay >= 19) continue;
-        if (bx < 0 || bx >= 19 || by < 0 || by >= 19) continue;
-        if (cx < 0 || cx >= 19 || cy < 0 || cy >= 19) continue;
-
-        if (board[ay][ax] != player) continue; // need the second allied stone right next to coord
-
-        // Check that this is EXACTLY a pair (not 3+ in a row)
-        // Look beyond the pair to ensure no third ally
-        int dx3 = coord.x + 3*dx;
-        int dy3 = coord.y + 3*dy;
-        int dxm = coord.x - 2*dx;
-        int dym = coord.y - 2*dy;
-
-        // If within bounds and there's an ally, this is 3+ stones, so can't be cut
-        if ((dx3 >= 0 && dx3 < 19 && dy3 >= 0 && dy3 < 19 && board[dy3][dx3] == player))
-            continue;
-        if ((dxm >= 0 && dxm < 19 && dym >= 0 && dym < 19 && board[dym][dxm] == player))
-            continue;
-
-        /* patterns to allow a cut (only for exactly 2 in a row):
-           enemy | coord | ally | empty   (1220)
-           empty | coord | ally | enemy   (0221) */
-        bool forwardCut  = (board[by][bx] == opponent) && (board[cy][cx] == 0);
-        bool reverseCut  = (board[by][bx] == 0)        && (board[cy][cx] == opponent);
-
-        if (forwardCut || reverseCut)
-        {
-            printf("Can be cut at (%d, %d)\n", coord.x, coord.y);
-            
-            return true;
-        }
-    }
-    return false;
-}
-
-bool RowIsLessThan5(int board[19][19], vector2 coord, int player) // returns true if the row at (x,y) is less than 5 in a row
-{
-    // TODO
-    return false;
-}
-
-void checkVictoryCondition(game *gameData, screen *windows)
-{
-    // return;
-    // if score >= 5, game over
-    if (gameData->score[0] >= 5 || gameData->score[1] >= 5)
-    {
-        gameData->game_over = true;
-    }
-    
-    // if 5 or more in a row and it can't be cut, game over
-    nRowList nRowList = getCoordinatesOfNRow(gameData->board, gameData->turn); // get list of the coordinates of 5 or more in a row
-    int nCanBeCut = 0;
-    int i = 0;
-    int tab[] = {0,1,2,3,4}; // offsets to check based on length of the row
-    // done this way to avoid checking the ends of the row which would be useless to cut
-    while ( nRowList.rows[i].coords[0].x != -1 && nRowList.rows[i].coords[0].y != -1 && nRowList.rows[i].length >=5)
-    {
-        
-        int length = nRowList.rows[i].length;
-        for (int offset = tab[length - 5]; offset < length - tab[length - 5]; offset++)
-        {
-            vector2 coord = nRowList.rows[i].coords[offset];
-            bool canBeCut = canBeCutAt(gameData->board, coord, gameData->turn);
-            if (canBeCut)
-            {
-                printf("Row at index %d can be cut at offset %d (coord %d,%d)\n", i, offset, coord.x, coord.y);
-                drawSquare(windows, coord.x, coord.y, 3); // debug: draw nothing at this coord
-                nCanBeCut++;
-                // break;
-            }
-        }
-        i++;
-    }
-    if (nCanBeCut < i)
-    {
-        printf("Player %d wins! (%d %d in a row that cannot be cut)\n", gameData->turn, i - nCanBeCut, i);
-        gameData->game_over = true;
     }
 }

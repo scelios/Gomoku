@@ -110,7 +110,7 @@ void makeIaMove(game *gameData, screen *windows)
     }
     else
     {
-        printf("IA: No valid moves found or Board Full.\n");
+        // printf("IA: No valid moves found or Board Full.\n");
         // Optionnel : gameData->game_over = true;
     }
     return ;
