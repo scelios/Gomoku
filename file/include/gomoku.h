@@ -175,6 +175,7 @@ void    printInformation(screen *windows, game *gameData);
 void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
 void    checkVictoryCondition(game *gameData, screen *windows);
 void    resetGame(game *gameData, screen *windows);
+void    resetScreen(screen *windows, int board[19][19]);
 void    drawReplayButton(screen *windows);
 
 // ============================

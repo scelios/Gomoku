@@ -31,7 +31,16 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->changed = true;
     windows->board_size = BOARD_SIZE;
     windows->text_img = NULL;
+    windows->img = NULL;
+    windows->mlx = NULL;
     gameData->board_size = windows->board_size;
+    
+    resetGame(gameData, windows);
+    return true;
+}
+
+void resetGame(game *gameData, screen *windows)
+{
     /* Initialize the entire fixed-size board to zero to avoid uninitialized memory */
     for (int i = 0; i < 19; i++)
     {
@@ -47,7 +56,8 @@ bool initialized(void *args, screen *windows, game *gameData)
     gameData->ia_timer.start_ts.tv_nsec = 0;
     gameData->score[0] = 0;
     gameData->score[1] = 0;
-    return true;
+
+    resetScreen(windows, gameData->board);
 }
 
 
@@ -73,6 +83,9 @@ void resetScreen(screen *windows, int board[19][19])
     
     // 3. Dessiner TOUTES les pièces existantes (C'est ça qui fait apparaître vos fantômes)
     putPiecesOnBoard(windows, board);
+
+    // 4. Dessiner le bouton replay
+    drawReplayButton(windows);
 }
 
 void makeIaMove(game *gameData, screen *windows)

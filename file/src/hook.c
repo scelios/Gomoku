@@ -67,6 +67,16 @@ void	mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
     game   *gameData = args->gameData;
     (void)mods;
 
+    if (button == MLX_MOUSE_BUTTON_LEFT && action == MLX_PRESS)
+    {
+        if (windows->x >= BUTTON_X && windows->x <= BUTTON_X + BUTTON_WIDTH &&
+            windows->y >= BUTTON_Y && windows->y <= BUTTON_Y + BUTTON_HEIGHT)
+        {
+            resetGame(gameData, windows);
+            return;
+        }
+    }
+
     int ml = BOARD_MARGIN_LEFT;
     int mr = BOARD_MARGIN_RIGHT;
     int mt = BOARD_MARGIN_TOP;

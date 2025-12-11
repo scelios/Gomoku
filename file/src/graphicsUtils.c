@@ -136,3 +136,24 @@ void drawSquare(screen *windows, int x0, int y0, unsigned short int team)
         }
     }
 }
+
+void drawReplayButton(screen *windows)
+{
+    int x_start = BUTTON_X;
+    int y_start = BUTTON_Y;
+    int width = BUTTON_WIDTH;
+    int height = BUTTON_HEIGHT;
+    int color = get_rgba(100, 100, 100, 255); // Grey
+    int border_color = get_rgba(200, 200, 200, 255); // Light grey
+
+    for (int x = x_start; x < x_start + width; x++)
+    {
+        for (int y = y_start; y < y_start + height; y++)
+        {
+            if (x == x_start || x == x_start + width - 1 || y == y_start || y == y_start + height - 1)
+                safe_put_pixel(windows, x, y, border_color);
+            else
+                safe_put_pixel(windows, x, y, color);
+        }
+    }
+}
