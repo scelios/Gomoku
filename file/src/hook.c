@@ -46,7 +46,9 @@ void keyhook(mlx_key_data_t keydata, void *param)
 
     if (keydata.key == MLX_KEY_ESCAPE && keydata.action == MLX_PRESS)
     {
-        printf("Escape key pressed, closing window.\n");
+        #ifdef DEBUG
+            printf("Escape key pressed, closing window.\n");
+        #endif
         mlx_close_window(windows->mlx);
     }
     // Activation/Désactivation IA
@@ -55,7 +57,9 @@ void keyhook(mlx_key_data_t keydata, void *param)
         // Si 0 -> Devient P2 (IA joue les Blancs/O)
         // Si non 0 -> Devient 0 (Humain vs Humain)
         gameData->iaTurn = (gameData->iaTurn == 0) ? P2 : 0;
-        printf("IA Mode: %s\n", gameData->iaTurn ? "ON (Player 2)" : "OFF");
+        #ifdef DEBUG
+            printf("IA Mode: %s\n", gameData->iaTurn ? "ON (Player 2)" : "OFF");
+        #endif
     }
 }
 

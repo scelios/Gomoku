@@ -43,7 +43,6 @@ int get_point_score(game *g, int x, int y, int player) {
         // Ou scanner la ligne entière. Le plus simple et sûr est la ligne entière.
         
         int consecutive = 0;
-        int open_ends = 0;
         int current_line_score = 0;
 
         // On cherche le début de la ligne (on recule tant qu'on est dans le board)

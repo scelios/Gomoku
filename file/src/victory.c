@@ -3,7 +3,6 @@
 // Helper : Vérifie l'alignement de 5 pions pour un joueur donné à partir d'un point
 static bool checkFiveInARow(int *board, int idx, int player)
 {
-    int x = GET_X(idx);
     int y = GET_Y(idx);
     
     // Axes: Horizontal, Vertical, Diag \, Diag /
@@ -46,21 +45,23 @@ static bool checkFiveInARow(int *board, int idx, int player)
     return false;
 }
 
-void checkVictoryCondition(game *gameData, screen *windows)
+void checkVictoryCondition(game *gameData)
 {
     if (gameData->game_over) return;
-
-    int player = gameData->turn;
 
     // 1. Victoire par CAPTURES (Immédiate)
     // Note: checkPieceCapture dans captures.c a déjà mis à jour le compteur
     if (gameData->captures[P1] >= 5) {
-        printf("VICTOIRE P1 (Noir) par captures (5 paires) !\n");
+        #ifdef DEBUG
+            printf("VICTOIRE P1 (Noir) par captures (5 paires) !\n");
+        #endif
         gameData->game_over = true;
         return;
     }
     if (gameData->captures[P2] >= 5) {
-        printf("VICTOIRE P2 (Blanc) par captures (5 paires) !\n");
+        #ifdef DEBUG
+            printf("VICTOIRE P2 (Blanc) par captures (5 paires) !\n");
+        #endif
         gameData->game_over = true;
         return;
     }

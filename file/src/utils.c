@@ -6,7 +6,9 @@ bool isIaTurn(int iaTurn, int turn){return (iaTurn == turn);}
 
 void resetGame(game *gameData, screen *windows)
 {
-    printf("--- GAME RESET ---\n");
+    #ifdef DEBUG
+        printf("--- GAME RESET ---\n");
+    #endif
 
     // 1. Nettoyage mémoire brute (rapide et sûr)
     memset(gameData->board, EMPTY, sizeof(gameData->board));

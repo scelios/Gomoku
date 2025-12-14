@@ -99,7 +99,7 @@ void gameLoop(void *param)
             makeIaMove(gameData, windows);
             
             // Après le coup de l'IA, on change de tour et on redraw
-            checkVictoryCondition(gameData, windows);
+            checkVictoryCondition(gameData);
             gameData->turn = (gameData->turn == P1) ? P2 : P1;
             windows->changed = true; // Forcer le redraw après coup IA
         }
@@ -108,7 +108,7 @@ void gameLoop(void *param)
             resetTimer(&gameData->ia_timer);
         }
 
-        checkVictoryCondition(gameData, windows);
+        checkVictoryCondition(gameData);
         // Note: Le changement de tour Humain se fait généralement dans le mousehook
         windows->changed = false;
     }

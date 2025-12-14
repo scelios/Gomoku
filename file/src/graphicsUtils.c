@@ -11,7 +11,7 @@ int get_rgba(int r, int g, int b, int a)
 void drawResetButton(screen *windows)
 {
     int color = get_rgba(70, 130, 180, 255); // Steel Blue
-    int border = get_rgba(255, 255, 255, 255); // Blanc
+    // int border = get_rgba(255, 255, 255, 255); // Blanc
 
     // Dessin du fond
     for (int y = BTN_Y; y < BTN_Y + BTN_H; y++)
@@ -22,7 +22,6 @@ void drawResetButton(screen *windows)
                 mlx_put_pixel(windows->img, x, y, color);
         }
     }
-    // Optionnel : Tu pourrais ajouter une bordure ici si tu veux
 }
 
 // Initialise les éléments de l'interface qui ne changent jamais (le texte du bouton)

@@ -158,7 +158,7 @@ bool    in_bounds(int x, int y);
 int     apply_captures_for_ai(game *g, int lx, int ly, int player, int *captured_indices_buffer);
 
 // victory.c
-void    checkVictoryCondition(game *gameData, screen *windows);
+void    checkVictoryCondition(game *gameData);
 
 // heuristics.c 
 int     evaluate_board(game *g, int player);
@@ -168,5 +168,6 @@ int     get_point_score(game *g, int x, int y, int player);
 void    makeIaMove(game *gameData, screen *windows);
 void    apply_move(game *g, int idx, int player, MoveUndo *undo);
 void    undo_move(game *g, int player, MoveUndo *undo);
+int     quick_evaluate_move(game *g, int idx, int player);
 
 #endif

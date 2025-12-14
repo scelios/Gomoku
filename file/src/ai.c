@@ -33,50 +33,57 @@ int compare_moves(const void *a, const void *b) {
     return m2->score_estim - m1->score_estim;
 }
 
-/* Génère les coups plausibles et les trie grossièrement */
-int generate_moves(game *g, MoveCandidate *moves) {
+/* Génère les coups et les trie par potentiel tactique */
+int generate_moves(game *g, MoveCandidate *moves, int player) {
     int count = 0;
-    int center = BOARD_SIZE / 2; // 9 pour un plateau 19x19
+    int center = BOARD_SIZE / 2;
 
     for (int i = 0; i < MAX_BOARD; i++) {
-        // On ne peut jouer que sur une case vide
+        // Filtre 1 : Case vide uniquement
         if (g->board[i] != EMPTY) continue;
 
-        // Si la case n'a pas de voisins (rayon 2), on l'ignore pour gagner du temps
+        // Filtre 2 : Voisins uniquement (Rayon 2)
         if (!has_neighbors(g, i)) continue;
 
         moves[count].index = i;
         
-        // --- Heuristique de tri (Move Ordering) ---
-        int score = 0;
-        // Petit bonus pour le centre
+        // --- TRI INTELLIGENT (MOVE ORDERING) ---
+        // On utilise notre nouvelle fonction d'évaluation rapide
+        int tactical_val = quick_evaluate_move(g, i, player);
+        
+        // On garde un petit bonus pour le centre pour départager les égalités tactiques
         int dist_center = abs(GET_X(i) - center) + abs(GET_Y(i) - center);
-        score -= dist_center; 
 
-        moves[count].score_estim = score;
+        // Formule de tri : La tactique écrase la distance.
+        // Exemple : Tactique (100000) >>> Distance (10)
+        moves[count].score_estim = tactical_val + (100 - dist_center);
+        
         count++;
     }
 
-    // --- CAS SPÉCIAL : DÉBUT DE PARTIE ---
-    // Si 'count' est 0 ici, cela signifie que le plateau est vide 
-    // (ou que les pierres sont trop loin, ce qui est impossible si on scanne tout).
-    // On doit absolument proposer au moins un coup : le Centre.
+    // Cas spécial : Premier coup du jeu (plateau vide)
     if (count == 0) {
         int center_idx = GET_INDEX(center, center);
         if (g->board[center_idx] == EMPTY) {
             moves[0].index = center_idx;
-            moves[0].score_estim = 1000;
+            moves[0].score_estim = 100000; // Priorité absolue
             count = 1;
         }
     }
 
-    // Trier les coups
+    // Tri décroissant
     qsort(moves, count, sizeof(MoveCandidate), compare_moves);
+
+    // LIMITATION (BEAM SEARCH)
+    // Si on a plus de 20 coups candidats, on ne garde que les 20 meilleurs.
+    // Cela garantit de ne pas perdre de temps sur les coups poubelles.
+    // if (count > 20) count = 20;
+    
     return count;
 }
 
 /* Helper pour mettre à jour le score global incrémentalement */
-void update_score_impact(game *g, int idx, bool is_adding_piece) {
+void update_score_impact(game *g, int idx) {
     int x = GET_X(idx);
     int y = GET_Y(idx);
     
@@ -97,6 +104,41 @@ void update_score_impact(game *g, int idx, bool is_adding_piece) {
     g->score[P2] -= p2_before;
 }
 
+// --- NOUVEAU HELPER DE TRI ---
+
+/* Évaluation rapide d'un coup unique pour le tri (Move Ordering).
+   On regarde :
+   1. Ce que ça nous rapporte (Attaque)
+   2. Ce que ça empêche l'adversaire de faire (Défense)
+*/
+int quick_evaluate_move(game *g, int idx, int player) {
+    int score = 0;
+    int opponent = (player == P1) ? P2 : P1;
+    
+    int x = GET_X(idx);
+    int y = GET_Y(idx);
+
+    // 1. Potentiel d'ATTAQUE
+    // On simule qu'on pose notre pion
+    g->board[idx] = player; 
+    int attack_score = get_point_score(g, x, y, player);
+    
+    // 2. Potentiel de DÉFENSE (Critique !)
+    // On simule que l'adversaire pose son pion ici
+    g->board[idx] = opponent;
+    int defense_score = get_point_score(g, x, y, opponent);
+    
+    // On remet la case vide
+    g->board[idx] = EMPTY;
+
+    // Le score est une combinaison. 
+    // Si defense_score est énorme (l'ennemi allait gagner), ce coup devient prioritaire.
+    // On additionne les deux pour prioriser les coups "double usage" (attaque + défense).
+    score = attack_score + defense_score;
+
+    return score;
+}
+
 // --- LOGIQUE DO / UNDO (Le cœur de l'optimisation) ---
 
 void apply_move(game *g, int idx, int player, MoveUndo *undo) {
@@ -112,7 +154,7 @@ void apply_move(game *g, int idx, int player, MoveUndo *undo) {
     
     // 1. On retire le score des lignes actuelles (P1 et P2) passant par ce point vide
     // (Car elles vont être modifiées)
-    update_score_impact(g, idx, true); // true = dummy param ici, la logique est ci-dessus
+    update_score_impact(g, idx);
     
     // 2. On pose la pierre
     g->board[idx] = player;
@@ -215,11 +257,11 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
     if (depth == 0 || abs(current_eval) > WIN_SCORE / 2) return current_eval;
 
     MoveCandidate moves[MAX_BOARD];
-    int move_count = generate_moves(g, moves);
+    int current_player = maximizingPlayer ? ia_player : ((ia_player == P1) ? P2 : P1);
+    int move_count = generate_moves(g, moves, current_player);
     if (move_count == 0) return 0;
 
     int best_val = maximizingPlayer ? INT_MIN : INT_MAX;
-    int current_player = maximizingPlayer ? ia_player : ((ia_player == P1) ? P2 : P1);
 
     for (int i = 0; i < move_count; i++) {
         MoveUndo undo;
@@ -278,7 +320,8 @@ void makeIaMove(game *gameData, screen *windows) {
 
         // On génère les coups
         MoveCandidate moves[MAX_BOARD];
-        int count = generate_moves(gameData, moves);
+
+        int count = generate_moves(gameData, moves, ia_player);
 
         // --- SECURITÉ FALLBACK ---
         // Si generate_moves trouve des coups mais qu'on timeout instantanément (très rare)
@@ -321,11 +364,15 @@ void makeIaMove(game *gameData, screen *windows) {
         }
 
         if (time_out) {
-            printf("Timeout at depth %d. Keeping best move from depth %d.\n", depth, depth-2);
+            #ifdef DEBUG
+                printf("Timeout at depth %d. Keeping best move from depth %d.\n", depth, depth-2);
+            #endif
             break; 
         } else {
             best_move_idx = current_best_idx;
-            printf("Depth %d complete. Best score: %d\n", depth, current_best_score);
+            #ifdef DEBUG
+                printf("Depth %d complete. Best score: %d\n", depth, current_best_score);
+            #endif
             if (current_best_score > WIN_SCORE / 2) break;
         }
         
@@ -358,9 +405,13 @@ play_move:
         // 4. Mettre à jour les infos et forcer le rafraîchissement
         windows->changed = true; 
         
-        printf("IA plays at (%d, %d)\n", x, y);
+        #ifdef DEBUG
+            printf("IA plays at (%d, %d)\n", x, y);
+        #endif
     } else {
-        printf("IA cannot move.\n");
+        #ifdef DEBUG
+            printf("IA cannot move.\n");
+        #endif
     }
 
     clock_t end = clock();
