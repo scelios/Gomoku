@@ -37,6 +37,10 @@
 #define WIN_LENGTH 5
 #define MAX_CAPTURES 10 // 5 paires = Victoire
 
+// Limites de temps et de profondeur
+#define MAX_DEPTH 10
+#define TIME_LIMIT_MS 450 // On garde une marge de sécurité (50ms) pour l'affichage
+
 // Valeurs des cases (Optimisé pour lecture rapide)
 #define EMPTY 0
 #define P1 1     // Joueur 1 (Noir)
@@ -111,6 +115,15 @@ typedef struct both
     game    *gameData;
 } both;
 
+// Structure pour stocker ce qu'il faut annuler après un coup
+typedef struct {
+    int move_idx;           // Où a-t-on joué ?
+    int captured_indices[10]; // Quels pions ont été retirés ? (Indices 1D)
+    int captured_count;     // Combien de pions retirés ?
+    int prev_score[3];      // Les scores heuristiques avant le coup
+    int prev_captures[3];   // Les compteurs de capture avant le coup
+} MoveUndo;
+
 // --- PROTOTYPES ---
 
 // graphicsUtils.c
@@ -136,20 +149,24 @@ void    resetTimer(timer *t);
 bool    isIaTurn(int iaTurn, int turn);
 void    resetGame(game *gameData, screen *windows);
 
-// information.c (C'était manquant !)
+// information.c
 void    printInformation(screen *windows, game *gameData);
 
-// captures.c (C'était manquant !)
+// captures.c
 void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
 bool    in_bounds(int x, int y);
+int     apply_captures_for_ai(game *g, int lx, int ly, int player, int *captured_indices_buffer);
 
 // victory.c
 void    checkVictoryCondition(game *gameData, screen *windows);
 
 // heuristics.c 
 int     evaluate_board(game *g, int player);
+int     get_point_score(game *g, int x, int y, int player);
 
 // ai.c
 void    makeIaMove(game *gameData, screen *windows);
+void    apply_move(game *g, int idx, int player, MoveUndo *undo);
+void    undo_move(game *g, int player, MoveUndo *undo);
 
 #endif

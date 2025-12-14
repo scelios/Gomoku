@@ -78,9 +78,9 @@ void checkPieceCapture(game *gameData, screen *windows, int lx, int ly)
             gameData->board[idx] = EMPTY;
             
             // Mise à jour Graphique (Seulement si windows existe, pour compatibilité IA future)
-            if (windows) {
+            // if (windows) {
                 drawSquare(windows, GET_X(idx), GET_Y(idx), EMPTY);
-            }
+            // }
         }
 
         // Mise à jour Scores (Chaque paire vaut 1 point de capture)
@@ -88,6 +88,46 @@ void checkPieceCapture(game *gameData, screen *windows, int lx, int ly)
         gameData->captures[owner] += (count / 2);
         
         // On notifie que l'écran a changé
-        if (windows) windows->changed = true;
+        windows->changed = true;
     }
+}
+
+// Version optimisée pour l'IA : remplit la structure Undo et ne dessine rien
+int apply_captures_for_ai(game *g, int lx, int ly, int player, int *captured_indices_buffer) {
+    int total_removed = 0;
+    int opponent = (player == P1) ? P2 : P1;
+    
+    const int dirs[8][2] = {
+        { 1, 0}, { 0, 1}, {-1, 0}, { 0,-1},
+        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
+    };
+
+    for (int d = 0; d < 8; d++) {
+        int dx = dirs[d][0];
+        int dy = dirs[d][1];
+        
+        int x1 = lx + dx,     y1 = ly + dy;
+        int x2 = lx + 2 * dx, y2 = ly + 2 * dy;
+        int x3 = lx + 3 * dx, y3 = ly + 3 * dy;
+
+        if (!in_bounds(x3, y3)) continue;
+
+        int idx1 = GET_INDEX(x1, y1);
+        int idx2 = GET_INDEX(x2, y2);
+        int idx3 = GET_INDEX(x3, y3);
+
+        if (g->board[idx1] == opponent &&
+            g->board[idx2] == opponent &&
+            g->board[idx3] == player) 
+        {
+            // Capture trouvée !
+            g->board[idx1] = EMPTY;
+            g->board[idx2] = EMPTY;
+            
+            // On enregistre pour le Undo
+            captured_indices_buffer[total_removed++] = idx1;
+            captured_indices_buffer[total_removed++] = idx2;
+        }
+    }
+    return total_removed;
 }
