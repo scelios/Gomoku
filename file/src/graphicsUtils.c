@@ -5,6 +5,38 @@ int get_rgba(int r, int g, int b, int a)
     return (r << 24 | g << 16 | b << 8 | a);
 }
 
+#include "../include/gomoku.h"
+
+// Dessine le rectangle bleu du bouton (Appelé à chaque redessin du plateau)
+void drawResetButton(screen *windows)
+{
+    int color = get_rgba(70, 130, 180, 255); // Steel Blue
+    int border = get_rgba(255, 255, 255, 255); // Blanc
+
+    // Dessin du fond
+    for (int y = BTN_Y; y < BTN_Y + BTN_H; y++)
+    {
+        for (int x = BTN_X; x < BTN_X + BTN_W; x++)
+        {
+            if (IS_VALID_PIXEL(x, y, windows)) // Assure-toi d'avoir une macro ou check ici
+                mlx_put_pixel(windows->img, x, y, color);
+        }
+    }
+    // Optionnel : Tu pourrais ajouter une bordure ici si tu veux
+}
+
+// Initialise les éléments de l'interface qui ne changent jamais (le texte du bouton)
+void initGUI(screen *windows)
+{
+    // On s'assure que le texte n'existe pas déjà
+    if (windows->restart_text)
+        mlx_delete_image(windows->mlx, windows->restart_text);
+
+    // On crée l'image du texte "RESTART" une bonne fois pour toutes
+    // On centre un peu le texte (ajustement manuel +10, +5)
+    windows->restart_text = mlx_put_string(windows->mlx, "RESTART", BTN_X + 12, BTN_Y + 5);
+}
+
 /* safe pixel put: check boundaries before writing */
 static inline void safe_put_pixel(screen *windows, int x, int y, int color)
 {
@@ -75,6 +107,7 @@ void putCadrillage(screen *windows)
         for (int x = ml; x <= ml + drawable_w; x++)
             safe_put_pixel(windows, x, y, color);
     }
+    drawResetButton(windows);
 }
 
 int teamColor(unsigned short int team)

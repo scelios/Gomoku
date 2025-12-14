@@ -25,6 +25,7 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->changed = true;
     windows->board_size = BOARD_SIZE;
     windows->text_img = NULL;
+    windows->restart_text = NULL;
 
     // Game Init
     gameData->board_size = BOARD_SIZE;
@@ -36,7 +37,7 @@ bool initialized(void *args, screen *windows, game *gameData)
     gameData->captures[P1] = 0;
     gameData->captures[P2] = 0;
 
-    gameData->iaTurn = 0; // 0 = Pas d'IA, sinon 1 ou 2
+    gameData->iaTurn = 1; // 0 = Pas d'IA, sinon 1 ou 2
     gameData->turn = P1;  // P1 commence toujours
     gameData->game_over = false;
 
@@ -76,25 +77,6 @@ void resetScreen(screen *windows, int *board)
     printBlack(windows);
     putCadrillage(windows);
     putPiecesOnBoard(windows, board);
-}
-
-// C'est ici que nous connecterons la Gemme #4 (Minimax) plus tard
-void makeIaMove(game *gameData, screen *windows)
-{
-    printf("IA réfléchit...\n");
-    // TODO: Connecter l'algo Alpha-Beta ici
-    
-    // Exemple temporaire pour ne pas bloquer: joue au hasard
-    /*
-    for (int i=0; i<MAX_BOARD; i++) {
-        if (gameData->board[i] == EMPTY) {
-            gameData->board[i] = gameData->iaTurn;
-            checkPieceCapture(gameData, windows, GET_X(i), GET_Y(i));
-            break;
-        }
-    }
-    */
-    (void)windows;
 }
 
 void gameLoop(void *param)
@@ -155,6 +137,8 @@ void launchGame(game *gameData, screen *windows)
         puts(mlx_strerror(mlx_errno));
         exit(EXIT_FAILURE);
     }
+
+    initGUI(windows);
 
     // Hooks
     mlx_resize_hook(windows->mlx, &resize, windows);

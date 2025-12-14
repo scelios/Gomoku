@@ -6,10 +6,19 @@ LIBMLX	:= ./MLX42
 INCDIR = includes
 LGLFW_PATH := /usr/lib/x86_64-linux-gnu/libglfw.so
 # LGLFW_PATH := $(shell brew --prefix glfw)
-HEADERS	:= -I ../include -I $(LIBMLX)/include
+HEADERS	:= -I ./include -I $(LIBMLX)/include
 LIBS	:= $(LIBMLX)/build/libmlx42.a -ldl -lglfw -pthread -lm -L $(LGLFW_PATH)/lib/
 
-SRCS	= $(shell find ./src -iname "*.c")
+SRCS    := src/main.c \
+           src/hook.c \
+           src/graphicsUtils.c \
+           src/utils.c \
+           src/timer.c \
+           src/information.c \
+           src/victory.c \
+           src/captures.c \
+           src/heuristics.c \
+           src/ai.c
 
 OBJS	= ${SRCS:.c=.o}
 
@@ -23,7 +32,7 @@ libmlx:
 	@cmake $(LIBMLX) -B $(LIBMLX)/build && make -C $(LIBMLX)/build -j4
 
 %.o: %.c
-	@$(CC) $(CFLAGS) -o $@ -c $< -I$(INCDIR) && printf "Compiling: $(notdir $<)\n"
+	@$(CC) $(CFLAGS) $(HEADERS) -o $@ -c $< && printf "Compiling: $(notdir $<)\n"
 
 $(NAME): $(OBJS)
 	@$(CC) $(OBJS) $(LIBS) $(HEADERS) -o $(NAME) && printf "Linking: $(NAME)\n"

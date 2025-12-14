@@ -10,13 +10,20 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <limits.h>
 
 // --- PROJECT LIBS ---
 #include "../MLX42/include/MLX42/MLX42.h"
 
 // --- CONSTANTES DE JEU & PERFORMANCE ---
-#define WIDTH 528
-#define HEIGHT 528
+#define WIDTH 818
+#define HEIGHT 818
+
+// Bouton Reset
+#define BTN_X 430
+#define BTN_Y 10
+#define BTN_W 80
+#define BTN_H 30
 
 // Marges Graphiques (Réintégrées)
 #define BOARD_MARGIN_LEFT 30
@@ -42,6 +49,24 @@
 #define GET_Y(index) ((index) / BOARD_SIZE)
 #define IS_VALID(x, y) ((x) >= 0 && (x) < BOARD_SIZE && (y) >= 0 && (y) < BOARD_SIZE)
 
+// --- POIDS DES SCORES ---
+// Ces valeurs déterminent la personnalité de l'IA.
+// Elles sont très espacées (puissances de 10) pour que Minimax priorise nettement.
+
+#define WIN_SCORE       100000000 // Victoire immédiate (5 alignés ou 10 captures)
+#define OPEN_FOUR       10000000  // 4 alignés ouverts des deux côtés (Victoire imparable au prochain tour sauf capture)
+#define CLOSED_FOUR     100000    // 4 alignés bloqués d'un côté (Force l'adversaire à bloquer)
+#define OPEN_THREE      100000    // 3 alignés ouverts (Crée une menace de OPEN_FOUR)
+#define CLOSED_THREE    1000      // 3 alignés bloqués
+#define OPEN_TWO        100       // 2 alignés ouverts
+#define CAPTURE_SCORE   200000    // Valeur d'une paire capturée (Très haute !)
+
+// Vérifie si un pixel (x, y) est dans les limites de la fenêtre 'win'
+// On cast en (int) pour éviter les warnings de comparaison signé/non-signé
+#define IS_VALID_PIXEL(x, y, win) \
+    ((x) >= 0 && (y) >= 0 && \
+     (x) < (int)(win)->width && (y) < (int)(win)->height)
+
 // --- STRUCTURES ---
 
 typedef struct screen
@@ -49,10 +74,11 @@ typedef struct screen
     mlx_t       *mlx;
     mlx_image_t *img;
     mlx_image_t *text_img;
+    mlx_image_t *restart_text;
     uint32_t    width;
     uint32_t    height;
-    double      x;          // mouse x
-    double      y;          // mouse y
+    double      x;
+    double      y;
     bool        moved;
     bool        resized;
     bool        isClicked;
@@ -67,18 +93,15 @@ typedef struct timer
     double elapsed;
 } timer;
 
-// Structure du Jeu (Optimisée IA)
 typedef struct game
 {
-    int     board[MAX_BOARD]; // TABLEAU 1D
-    int     captures[3];      // captures[P1] et captures[P2]
-    int     score[3];         
-    
+    int     board[MAX_BOARD];
+    int     captures[3];
+    int     score[3];
     int     board_size;
-    int     turn;             // 1 ou 2
-    int     iaTurn;           // 1 ou 2, ou 0 si pas d'IA
+    int     turn;
+    int     iaTurn;
     bool    game_over;
-    
     timer   ia_timer;
 } game;
 
@@ -90,34 +113,43 @@ typedef struct both
 
 // --- PROTOTYPES ---
 
-// Graphics utils
+// graphicsUtils.c
 int     get_rgba(int r, int g, int b, int a);
 void    printBlack(screen *windows);
 void    putCadrillage(screen *windows);
 int     teamColor(unsigned short int team);
 void    drawSquare(screen *windows, int x0, int y0, unsigned short int team);
+void    initGUI(screen *windows);
 
-// Hooks
+// hook.c
 void    keyhook(mlx_key_data_t keydata, void *param);
 void    cursor(double xpos, double ypos, void *param);
 void    resize(int32_t width, int32_t height, void *param);
 void    mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *param);
 
-// Timer
+// timer.c
 void    stopTimer(timer *t);
 void    launchTimer(timer *t);
 void    resetTimer(timer *t);
 
-// Utils
+// utils.c
 bool    isIaTurn(int iaTurn, int turn);
+void    resetGame(game *gameData, screen *windows);
 
-// Information & Logique
-bool checkFiveInARow(int *board, int idx, int player);
-int  checkCaptures(game *gameData, int idx, int player);
-void playMoveAndCheck(game *gameData, int idx, screen *windows);
-void checkVictoryCondition(game *gameData, screen *windows);
+// information.c (C'était manquant !)
+void    printInformation(screen *windows, game *gameData);
 
-// IA
+// captures.c (C'était manquant !)
+void    checkPieceCapture(game *gameData, screen *windows, int lx, int ly);
+bool    in_bounds(int x, int y);
+
+// victory.c
+void    checkVictoryCondition(game *gameData, screen *windows);
+
+// heuristics.c 
+int     evaluate_board(game *g, int player);
+
+// ai.c
 void    makeIaMove(game *gameData, screen *windows);
 
 #endif

@@ -4,25 +4,31 @@ void resize(int32_t width, int32_t height, void *param)
 {
     screen *windows = (struct screen *)param;
 
-    if (!windows) return;
-
-    if (windows->img) mlx_delete_image(windows->mlx, windows->img);
-    if (windows->text_img) mlx_delete_image(windows->mlx, windows->text_img);
-
-    windows->img = mlx_new_image(windows->mlx, width, height);
-    if (!windows->img)
-    {
-        fprintf(stderr, "mlx_new_image failed in resize\n");
-        mlx_close_window(windows->mlx);
-        return;
-    }
-
     windows->width = width;
     windows->height = height;
-    windows->moved = true;
+
+    if (windows->img) mlx_delete_image(windows->mlx, windows->img);
+    
+    windows->img = mlx_new_image(windows->mlx, width, height);
+    // On met l'image de fond en couche 0
+    mlx_image_to_window(windows->mlx, windows->img, 0, 0);
+
+    // ASTUCE PROPRE :
+    // Le texte "RESTART" existe déjà (windows->restart_text).
+    // Mais comme on vient de remettre l'image de fond (img), elle risque de passer DEVANT le texte.
+    // On supprime l'instance d'affichage du texte et on la remet pour qu'elle soit au-dessus.
+    
+    if (windows->restart_text)
+    {
+        // On détruit l'ancienne image de texte pour la recréer proprement par-dessus
+        // Ou plus simple : on supprime et on rappelle initGUI
+        mlx_delete_image(windows->mlx, windows->restart_text);
+        windows->restart_text = NULL;
+        initGUI(windows); 
+    }
+
     windows->resized = true;
     windows->changed = true;
-    mlx_image_to_window(windows->mlx, windows->img, 0, 0);
 }
 
 void cursor(double xpos, double ypos, void *param)
@@ -59,6 +65,18 @@ void mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
     screen *windows = args->windows;
     game *gameData = args->gameData;
     (void)mods;
+
+    // GESTION DU BOUTON RESET (Prioritaire sur le reste)
+    if (button == MLX_MOUSE_BUTTON_LEFT && action == MLX_PRESS)
+    {
+        // On vérifie si la souris est dans le rectangle du bouton
+        if (windows->x >= BTN_X && windows->x <= BTN_X + BTN_W &&
+            windows->y >= BTN_Y && windows->y <= BTN_Y + BTN_H)
+        {
+            resetGame(gameData, windows);
+            return; // On arrête là, on ne pose pas de pion !
+        }
+    }
 
     // Pas de clic si c'est au tour de l'IA !
     if (isIaTurn(gameData->iaTurn, gameData->turn))
