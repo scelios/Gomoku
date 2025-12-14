@@ -1,169 +1,184 @@
 #include "../include/gomoku.h"
-#include <string.h>
 
+// Offsets pour les 8 directions sur un tableau 1D (pour Board Size 19)
+// N, S, W, E, NW, NE, SW, SE
+static const int DIRECTIONS[8] = {
+    -BOARD_SIZE, BOARD_SIZE, -1, 1, 
+    -BOARD_SIZE - 1, -BOARD_SIZE + 1, BOARD_SIZE - 1, BOARD_SIZE + 1
+};
 
-
-// returns list of coordinates of the 5 in a row found on the board for the given player
-nRowList getCoordinatesOfNRow(int board[50][50], int player)
+/**
+ * Vérifie si le coup joué à l'index `idx` capture des pions adverses.
+ * Pattern de capture : [AMI] [ENNEMI] [ENNEMI] [AMI]
+ * Retourne le nombre de paires capturées.
+ */
+int checkCaptures(game *gameData, int idx, int player)
 {
-    nRowList list;
-    memset(&list, 0, sizeof(list)); // set all to zero
-    int nRowIndex = 0;
-    const int dirs[4][2] = {
-        {1, 0}, // horizontal -
-        {0, 1}, // vertical |
-        {1, 1}, // diagonal 
-        {1, -1} // diagonal /
-    };
-    rowCoordinates rowBuf;
-    for (int y = 0; y < 50; y++)
-    {
-        for (int x = 0; x < 50; x++)
-        {
-            if (board[y][x] != player)
-                continue;
-            for (int d = 0; d < 4; d++)
-            {
-                int dx = dirs[d][0];
-                int dy = dirs[d][1];
-
-                // if (dx == 0 && dy == 0) // defensive : jamais accepter (0,0)
-                //     continue;
-                // printf("Checking from (%d, %d) direction (%d, %d)\n", x, y, dx, dy);
-                int length = 1;
-                rowBuf.coords[0].x = x;
-                rowBuf.coords[0].y = y;
-                rowBuf.length = 1;
-                int nx = x + dx;
-                int ny = y + dy;
-                while (nx >= 0 && nx < 50 && ny >= 0 && ny < 50 && board[ny][nx] == player && length < 50)
-                {
-                    rowBuf.coords[length].x = nx;
-                    rowBuf.coords[length].y = ny;
-                    length++;
-                    nx += dx;
-                    ny += dy;
-                }
-                if (length >= 5)
-                {
-                    rowBuf.length = length;
-                    list.rows[nRowIndex] = rowBuf;
-                    nRowIndex++;
-                    if (nRowIndex >= MAX_NROWS) // max rows
-                        break;
-                }
-            }
-        }
-        if (nRowIndex >= MAX_NROWS) // max rows
-            break;
-    }
-    if (nRowIndex < MAX_NROWS) {
-        list.rows[nRowIndex].coords[0].x = -1; // end of list
-        list.rows[nRowIndex].coords[0].y = -1;
-    } else {
-        list.rows[MAX_NROWS-1].coords[0].x = -1;
-        list.rows[MAX_NROWS-1].coords[0].y = -1;
-    }
-    return list;
-}
-
-bool canBeCutAt(int board[50][50], vector2 coord, int player)
-{
-    const int dirs[8][2] = {
-        { 1, 0}, { 0, 1}, {-1, 0}, { 0,-1},
-        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
-    };
-    int opponent = (player == 1) ? 2 : 1;
+    int opponent = (player == P1) ? P2 : P1;
+    int captures_count = 0;
+    int *board = gameData->board;
+    int x = GET_X(idx);
+    int y = GET_Y(idx);
 
     for (int d = 0; d < 8; d++)
     {
-        int dx = dirs[d][0];
-        int dy = dirs[d][1];
+        int dir = DIRECTIONS[d];
+        
+        // Coordonnées relatives pour vérifier les débordements de ligne
+        // dx/dy nous servent à vérifier qu'on ne "warp" pas de l'autre côté du plateau
+        int dx = 0, dy = 0;
+        if (dir == 1 || dir == -BOARD_SIZE + 1 || dir == BOARD_SIZE + 1) dx = 1;
+        if (dir == -1 || dir == -BOARD_SIZE - 1 || dir == BOARD_SIZE - 1) dx = -1;
+        if (dir == BOARD_SIZE || dir == BOARD_SIZE - 1 || dir == BOARD_SIZE + 1) dy = 1;
+        if (dir == -BOARD_SIZE || dir == -BOARD_SIZE - 1 || dir == -BOARD_SIZE + 1) dy = -1;
 
-        int ax = coord.x + dx;      // adjacent in dir: must be ally
-        int ay = coord.y + dy;
-        int bx = coord.x - dx;      // one step behind coord
-        int by = coord.y - dy;
-        int cx = coord.x + 2*dx;    // two steps forward
-        int cy = coord.y + 2*dy;
+        // Index des 3 cases suivantes : [idx] [1] [2] [3]
+        int idx1 = idx + dir;
+        int idx2 = idx + 2 * dir;
+        int idx3 = idx + 3 * dir;
 
-        if (ax < 0 || ax >= 50 || ay < 0 || ay >= 50) continue;
-        if (bx < 0 || bx >= 50 || by < 0 || by >= 50) continue;
-        if (cx < 0 || cx >= 50 || cy < 0 || cy >= 50) continue;
+        // Vérification des bords du plateau (IS_VALID est dans le .h)
+        // On vérifie les coord absolues de la case "destination" (l'allié qui ferme la pince)
+        int dest_x = x + (dx * 3);
+        int dest_y = y + (dy * 3);
 
-        if (board[ay][ax] != player) continue; // need the second allied stone right next to coord
+        if (!IS_VALID(dest_x, dest_y)) continue;
 
-        // Check that this is EXACTLY a pair (not 3+ in a row)
-        // Look beyond the pair to ensure no third ally
-        int dx3 = coord.x + 3*dx;
-        int dy3 = coord.y + 3*dy;
-        int dxm = coord.x - 2*dx;
-        int dym = coord.y - 2*dy;
-
-        // If within bounds and there's an ally, this is 3+ stones, so can't be cut
-        if ((dx3 >= 0 && dx3 < 50 && dy3 >= 0 && dy3 < 50 && board[dy3][dx3] == player))
-            continue;
-        if ((dxm >= 0 && dxm < 50 && dym >= 0 && dym < 50 && board[dym][dxm] == player))
-            continue;
-
-        /* patterns to allow a cut (only for exactly 2 in a row):
-           enemy | coord | ally | empty   (1220)
-           empty | coord | ally | enemy   (0221) */
-        bool forwardCut  = (board[by][bx] == opponent) && (board[cy][cx] == 0);
-        bool reverseCut  = (board[by][bx] == 0)        && (board[cy][cx] == opponent);
-
-        if (forwardCut || reverseCut)
+        // La logique de capture : X O O X
+        if (board[idx1] == opponent && 
+            board[idx2] == opponent && 
+            board[idx3] == player)
         {
-            printf("Can be cut at (%d, %d)\n", coord.x, coord.y);
+            // CAPTURE !
+            board[idx1] = EMPTY; // Retirer le pion
+            board[idx2] = EMPTY; // Retirer le pion
+            captures_count++;
             
-            return true;
+            // Effet graphique (optionnel, pour debug)
+            // printf("Capture réalisée direction %d !\n", d);
         }
+    }
+    return captures_count;
+}
+
+/**
+ * Vérifie si le joueur a aligné 5 pions (ou plus) passant par `idx`.
+ * Regarde les 4 axes (Horizontal, Vertical, Diag1, Diag2).
+ */
+bool checkFiveInARow(int *board, int idx, int player)
+{
+    int x = GET_X(idx);
+    int y = GET_Y(idx);
+
+    // Les 4 axes de vérification (offsets positifs)
+    // Horizontal(1), Vertical(BOARD_SIZE), Diag1(BOARD_SIZE+1), Diag2(BOARD_SIZE-1)
+    int axes[4] = {1, BOARD_SIZE, BOARD_SIZE + 1, BOARD_SIZE - 1};
+
+    for (int a = 0; a < 4; a++)
+    {
+        int offset = axes[a];
+        int count = 1; // On compte le pion qu'on vient de poser
+
+        // 1. Scanner dans la direction POSITIVE
+        for (int i = 1; i < 5; i++)
+        {
+            int next_idx = idx + (i * offset);
+            int nx = GET_X(next_idx);
+            int ny = GET_Y(next_idx);
+
+            // Vérifier validité (bords) et continuité visuelle
+            // Astuce 1D : Si on vérifie horizontalement, y doit rester le même.
+            if (!IS_VALID(nx, ny) || board[next_idx] != player) break;
+            if (a == 0 && ny != y) break; // Sécurité anti-wrap horizontal
+
+            count++;
+        }
+
+        // 2. Scanner dans la direction NEGATIVE
+        for (int i = 1; i < 5; i++)
+        {
+            int prev_idx = idx - (i * offset);
+            int px = GET_X(prev_idx);
+            int py = GET_Y(prev_idx);
+
+            if (!IS_VALID(px, py) || board[prev_idx] != player) break;
+            if (a == 0 && py != y) break; 
+
+            count++;
+        }
+
+        if (count >= 5) return true;
     }
     return false;
 }
 
-bool RowIsLessThan5(int board[50][50], vector2 coord, int player) // returns true if the row at (x,y) is less than 5 in a row
-{
-    // TODO
-    return false;
-}
-
+/**
+ * Fonction principale appelée après chaque clic ou coup d'IA
+ */
 void checkVictoryCondition(game *gameData, screen *windows)
 {
-    // return;
-    // if score >= 5, game over
-    if (gameData->score[0] >= 5 || gameData->score[1] >= 5)
-    {
-        gameData->game_over = true;
-    }
+    // On ne vérifie rien si le jeu est fini
+    if (gameData->game_over) return;
+
+    // Trouver le dernier coup joué n'est pas stocké explicitement dans gameData actuellement
+    // Pour l'optimisation, il faudrait passer le dernier coup en argument.
+    // MAIS, pour l'instant, faisons une fonction qui scanne (moins performant mais compatible avec votre code actuel)
+    // IDEALEMENT : Modifiez le prototype pour : void checkVictoryCondition(game *gameData, int last_move_idx)
     
-    // if 5 or more in a row and it can't be cut, game over
-    nRowList nRowList = getCoordinatesOfNRow(gameData->board, gameData->turn); // get list of the coordinates of 5 or more in a row
-    int nCanBeCut = 0;
-    int i = 0;
-    int tab[] = {0,1,2,3,4}; // offsets to check based on length of the row
-    // done this way to avoid checking the ends of the row which would be useless to cut
-    while ( nRowList.rows[i].coords[0].x != -1 && nRowList.rows[i].coords[0].y != -1 && nRowList.rows[i].length >=5)
+    // --- TEMPORAIRE : Recherche du dernier coup (À optimiser plus tard dans votre boucle de jeu) ---
+    // Pour l'instant, on va scanner tout le plateau uniquement pour l'exemple
+    // car votre code actuel ne passe pas l'index du dernier coup.
+    // C'est ici que l'architecture doit évoluer.
+    
+    // NOTE : Je laisse la logique "globale" pour que ça compile avec votre main.c actuel,
+    // mais l'IA utilisera check_five_in_a_row directement.
+    
+    // Vérification score (Captures)
+    if (gameData->captures[gameData->turn] >= MAX_CAPTURES) // 5 paires = 10 pions
     {
-        
-        int length = nRowList.rows[i].length;
-        for (int offset = tab[length - 5]; offset < length - tab[length - 5]; offset++)
+        printf("Victoire par capture pour le joueur %d !\n", gameData->turn);
+        gameData->game_over = true;
+        return;
+    }
+
+    // Vérification alignement (Naïf pour l'affichage, Optimisé pour l'IA)
+    // On parcourt tout le tableau pour trouver une victoire (LENT mais sûr pour l'interface graphique)
+    for (int i = 0; i < MAX_BOARD; i++)
+    {
+        if (gameData->board[i] == gameData->turn)
         {
-            vector2 coord = nRowList.rows[i].coords[offset];
-            bool canBeCut = canBeCutAt(gameData->board, coord, gameData->turn);
-            if (canBeCut)
+            if (checkFiveInARow(gameData->board, i, gameData->turn))
             {
-                printf("Row at index %d can be cut at offset %d (coord %d,%d)\n", i, offset, coord.x, coord.y);
-                drawSquare(windows, coord.x, coord.y, 3); // debug: draw nothing at this coord
-                nCanBeCut++;
-                // break;
+                printf("Victoire par alignement pour le joueur %d !\n", gameData->turn);
+                gameData->game_over = true;
+                return;
             }
         }
-        i++;
     }
-    if (nCanBeCut < i)
-    {
-        printf("Player %d wins! (%d %d in a row that cannot be cut)\n", gameData->turn, i - nCanBeCut, i);
+}
+
+/**
+ * Fonction helper pour l'IA et le gameplay : Joue un coup, gère captures et victoire
+ * À utiliser dans votre boucle de jeu principale !
+ */
+void playMoveAndCheck(game *gameData, int idx, screen *windows)
+{
+    int player = gameData->turn;
+    
+    // 1. Poser le pion
+    gameData->board[idx] = player;
+
+    // 2. Gérer les captures (Règle : on capture APRES avoir posé)
+    int pairs_captured = checkCaptures(gameData, idx, player);
+    gameData->captures[player] += (pairs_captured * 2); // *2 car on compte les pions
+
+    // 3. Vérifier victoire immédiate
+    if (gameData->captures[player] >= MAX_CAPTURES) {
         gameData->game_over = true;
+        printf("WIN par Captures!\n");
+    }
+    else if (checkFiveInARow(gameData->board, idx, player)) {
+        gameData->game_over = true;
+        printf("WIN par Alignement!\n");
     }
 }

@@ -1,15 +1,11 @@
-# include "../include/gomoku.h"
+#include "../include/gomoku.h"
 
 bool checkArgs(int argc, char **argv, void**args)
 {
     if (argc == 1)
-    {
-        *args = NULL; // default mode
-    }
+        *args = NULL;
     else
     {
-        //! TODO: parse arguments here for different game modes
-        // for now, we just set args to NULL
         (void)argv;
         *args = NULL;
     }
@@ -18,8 +14,9 @@ bool checkArgs(int argc, char **argv, void**args)
 
 bool initialized(void *args, screen *windows, game *gameData)
 {
-    (void) args; // currently unused
-    // Initialize game board to empty
+    (void) args;
+
+    // Screen Init
     windows->width = WIDTH;
     windows->height = HEIGHT;
     windows->moved = false;
@@ -28,53 +25,77 @@ bool initialized(void *args, screen *windows, game *gameData)
     windows->changed = true;
     windows->board_size = BOARD_SIZE;
     windows->text_img = NULL;
-    gameData->board_size = windows->board_size;
-    /* Initialize the entire fixed-size board to zero to avoid uninitialized memory */
-    for (int i = 0; i < 50; i++)
-    {
-        for (int j = 0; j < 50; j++)
-            gameData->board[i][j] = 0;
-    }
-    gameData->iaTurn = 0;
-    gameData->ia_timer.elapsed = 0.0;
-    gameData->turn = 1; // player 1 starts
+
+    // Game Init
+    gameData->board_size = BOARD_SIZE;
+
+    // OPTIMISATION: memset met tout le tableau à 0 en une seule instruction CPU
+    memset(gameData->board, EMPTY, sizeof(gameData->board));
+    
+    // Init captures
+    gameData->captures[P1] = 0;
+    gameData->captures[P2] = 0;
+
+    gameData->iaTurn = 0; // 0 = Pas d'IA, sinon 1 ou 2
+    gameData->turn = P1;  // P1 commence toujours
     gameData->game_over = false;
+
+    // Timer Init
+    gameData->ia_timer.elapsed = 0.0;
     gameData->ia_timer.running = false;
     gameData->ia_timer.start_ts.tv_sec = 0;
     gameData->ia_timer.start_ts.tv_nsec = 0;
-    gameData->score[0] = 0;
-    gameData->score[1] = 0;
+
+    gameData->score[0] = 0; // Unused
+    gameData->score[P1] = 0;
+    gameData->score[P2] = 0;
+
     return true;
 }
 
-
-void putPiecesOnBoard(screen *windows, int board[50][50])
+void putPiecesOnBoard(screen *windows, int *board)
 {
-    for (int i = 0; i < windows->board_size; i++)
+    // On parcourt le tableau 1D comme une matrice pour l'affichage
+    for (int y = 0; y < windows->board_size; y++)
     {
-        for (int j = 0; j < windows->board_size; j++)
+        for (int x = 0; x < windows->board_size; x++)
         {
-            if (board[i][j] == 1 || board[i][j] == 2)
-                drawSquare(windows, j, i, board[i][j]);
+            // Utilisation de la Macro pour récupérer la valeur
+            int val = board[GET_INDEX(x, y)];
+            
+            if (val == P1 || val == P2)
+                drawSquare(windows, x, y, val);
+            else if (val == PREVIS)
+                 drawSquare(windows, x, y, val); // Si tu as une couleur de prévis
         }
     }
 }
 
-void resetScreen(screen *windows, int board[50][50])
+void resetScreen(screen *windows, int *board)
 {
     printBlack(windows);
     putCadrillage(windows);
     putPiecesOnBoard(windows, board);
 }
 
+// C'est ici que nous connecterons la Gemme #4 (Minimax) plus tard
 void makeIaMove(game *gameData, screen *windows)
 {
-    // TODO
-    // Placeholder for IA move logic
-    (void)gameData;
+    printf("IA réfléchit...\n");
+    // TODO: Connecter l'algo Alpha-Beta ici
+    
+    // Exemple temporaire pour ne pas bloquer: joue au hasard
+    /*
+    for (int i=0; i<MAX_BOARD; i++) {
+        if (gameData->board[i] == EMPTY) {
+            gameData->board[i] = gameData->iaTurn;
+            checkPieceCapture(gameData, windows, GET_X(i), GET_Y(i));
+            break;
+        }
+    }
+    */
     (void)windows;
 }
-
 
 void gameLoop(void *param)
 {
@@ -89,19 +110,28 @@ void gameLoop(void *param)
             windows->resized = false;
             resetScreen(windows, gameData->board);
         }
+
+        // Gestion du tour IA
         if (isIaTurn(gameData->iaTurn, gameData->turn) && !gameData->game_over)
         {
             makeIaMove(gameData, windows);
+            
+            // Après le coup de l'IA, on change de tour et on redraw
+            checkVictoryCondition(gameData, windows);
+            gameData->turn = (gameData->turn == P1) ? P2 : P1;
+            windows->changed = true; // Forcer le redraw après coup IA
         }
         else
+        {
             resetTimer(&gameData->ia_timer);
+        }
+
         checkVictoryCondition(gameData, windows);
+        // Note: Le changement de tour Humain se fait généralement dans le mousehook
         windows->changed = false;
-        gameData->turn = (gameData->turn == 1) ? 2 : 1;
     }
 
     printInformation(windows, gameData);
-
 }
 
 void launchGame(game *gameData, screen *windows)
@@ -109,14 +139,15 @@ void launchGame(game *gameData, screen *windows)
     both args;
     args.windows = windows;
     args.gameData = gameData;
-    (void)gameData;
 
-    windows->mlx = mlx_init((int32_t)windows->width, (int32_t)windows->height, "Gomoku", true);
+    // Init MLX
+    windows->mlx = mlx_init((int32_t)windows->width, (int32_t)windows->height, "Gomoku IA", true);
     if (!windows->mlx)
     {
         perror("mlx_init failed");
         exit(EXIT_FAILURE);
     }
+
     windows->img = mlx_new_image(windows->mlx, windows->width, windows->height);
     if (mlx_image_to_window(windows->mlx, windows->img, 0, 0) == -1)
     {
@@ -125,38 +156,30 @@ void launchGame(game *gameData, screen *windows)
         exit(EXIT_FAILURE);
     }
 
+    // Hooks
     mlx_resize_hook(windows->mlx, &resize, windows);
     mlx_loop_hook(windows->mlx, &gameLoop, &args);
     mlx_cursor_hook(windows->mlx, &cursor, windows);
     mlx_mouse_hook(windows->mlx, &mousehook, &args);
     mlx_key_hook(windows->mlx, &keyhook, &args);
+
     mlx_loop(windows->mlx);
-    // mlx_close_hook(windows->mlx, &closeScreen, windows);
-    // mlx_delete_image(windows->mlx, windows->img);
     mlx_terminate(windows->mlx);
 }
 
-
 int main(int argc, char **argv)
 {
-    (void) argv;
-    void *args; // args will be used to know wich mode of play we are (player vs machine, p vs p, m vs m, or other game mode)
-    screen windows; // windows will be used to put the MLX nescessaries information inside
-    game gameData; // will contain all nescessary data for the game
+    void *args;
+    screen windows;
+    game gameData;
 
-    if (!checkArgs(argc,argv, &args))
-    {
+    if (!checkArgs(argc, argv, &args))
         return (EXIT_FAILURE);
-    }
 
-    if (!initialized(args, &windows, &gameData)) // initialized will launch the game windows and initialized the nescessary data
-    {
+    if (!initialized(args, &windows, &gameData))
         return (EXIT_FAILURE);
-    }
 
     launchGame(&gameData, &windows);
 
-    // exit(EXIT_SUCCESS);
     return (EXIT_SUCCESS);
-
 }

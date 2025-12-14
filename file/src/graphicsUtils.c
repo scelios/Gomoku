@@ -1,4 +1,4 @@
-# include "../include/gomoku.h"
+#include "../include/gomoku.h"
 
 int get_rgba(int r, int g, int b, int a)
 {
@@ -12,16 +12,17 @@ static inline void safe_put_pixel(screen *windows, int x, int y, int color)
         return;
     if (x < 0 || y < 0)
         return;
-    if (x >= windows->width || y >= windows->height)
+    if (x >= (int)windows->width || y >= (int)windows->height)
         return;
     mlx_put_pixel(windows->img, x, y, color);
 }
 
 void printBlack(screen *windows)
 {
-    for (int i = 0; i < windows->width; i++)
+    // Remplir de noir (optimisation possible avec memset sur img->pixels si on voulait)
+    for (int i = 0; i < (int)windows->width; i++)
     {
-        for (int j = 0; j < windows->height; j++)
+        for (int j = 0; j < (int)windows->height; j++)
         {
             safe_put_pixel(windows, i, j, get_rgba(0, 0, 0, 255));
         }
@@ -33,6 +34,7 @@ void putCadrillage(screen *windows)
     if (windows->board_size <= 0)
         return;
 
+    // Ces constantes sont maintenant définies dans gomoku.h
     int ml = BOARD_MARGIN_LEFT;
     int mr = BOARD_MARGIN_RIGHT;
     int mt = BOARD_MARGIN_TOP;
@@ -43,32 +45,34 @@ void putCadrillage(screen *windows)
     if (drawable_w <= 0 || drawable_h <= 0)
         return;
 
-    int cell_w = drawable_w / windows->board_size;
-    int cell_h = drawable_h / windows->board_size;
-    if (cell_w <= 0 || cell_h <= 0)
-        return;
-
     int color = get_rgba(255, 0, 0, 255);
 
-    /* vertical lines: compute positions by scaling so lines stay inside drawable rect */
-    for (int col = 0; col <= windows->board_size; col++)
+    /* vertical lines */
+    for (int col = 0; col < windows->board_size; col++)
     {
-        /* position scaled to drawable area to account for integer remainders */
-        int x = ml + (int)round((double)col * (double)drawable_w / (double)windows->board_size);
+        // Note: j'ai changé col <= à col < car board_size = 19 lignes (index 0 à 18)
+        // Mais pour l'affichage grid, c'est parfois board_size lignes.
+        // Gardons ta logique d'origine si tu veux les bords.
+        
+        int x = ml + (int)round((double)col * (double)drawable_w / (double)(windows->board_size - 1));
+        // Note: division par (board_size - 1) pour que la dernière ligne soit exactement à la fin
+        
         if (x < ml) x = ml;
         if (x > ml + drawable_w) x = ml + drawable_w;
-        /* draw only inside drawable vertical span */
-        for (int y = mt; y < mt + drawable_h; y++)
+        
+        for (int y = mt; y <= mt + drawable_h; y++)
             safe_put_pixel(windows, x, y, color);
     }
 
-    /* horizontal lines: same scaling for Y */
-    for (int row = 0; row <= windows->board_size; row++)
+    /* horizontal lines */
+    for (int row = 0; row < windows->board_size; row++)
     {
-        int y = mt + (int)round((double)row * (double)drawable_h / (double)windows->board_size);
+        int y = mt + (int)round((double)row * (double)drawable_h / (double)(windows->board_size - 1));
+        
         if (y < mt) y = mt;
         if (y > mt + drawable_h) y = mt + drawable_h;
-        for (int x = ml; x < ml + drawable_w; x++)
+        
+        for (int x = ml; x <= ml + drawable_w; x++)
             safe_put_pixel(windows, x, y, color);
     }
 }
@@ -77,12 +81,12 @@ int teamColor(unsigned short int team)
 {
     switch (team)
     {
-    case 0:
+    case EMPTY: // 0
         return get_rgba(0, 0, 0, 255);
-    case 1:
-        return get_rgba(0, 255, 0, 255);
-    case 2:
-        return get_rgba(255, 0, 0, 255);
+    case P1:    // 1
+        return get_rgba(0, 255, 0, 255); // Vert pour P1
+    case P2:    // 2
+        return get_rgba(255, 0, 0, 255); // Rouge pour P2
     default:
         return get_rgba(255, 255, 255, 255);
     }
@@ -103,16 +107,17 @@ void drawSquare(screen *windows, int x0, int y0, unsigned short int team)
     if (drawable_w <= 0 || drawable_h <= 0)
         return;
 
-    /* compute cell size using same scaling as putCadrillage (distribute remainder) */
-    double cell_w_f = (double)drawable_w / (double)windows->board_size;
-    double cell_h_f = (double)drawable_h / (double)windows->board_size;
+    // Calcul basé sur l'espacement entre lignes
+    double cell_w_f = (double)drawable_w / (double)(windows->board_size - 1);
+    double cell_h_f = (double)drawable_h / (double)(windows->board_size - 1);
 
-    /* center of the cell using rounding so it matches the grid lines */
-    int cx = ml + (int)round((x0 + 0.5) * cell_w_f);
-    int cy = mt + (int)round((y0 + 0.5) * cell_h_f);
+    int cx = ml + (int)round(x0 * cell_w_f);
+    int cy = mt + (int)round(y0 * cell_h_f);
 
-    int radius_x = (int)round(cell_w_f * 0.25);
-    int radius_y = (int)round(cell_h_f * 0.25);
+    // Taille du pion
+    int radius_x = (int)round(cell_w_f * 0.4); // 0.4 pour être un peu plus petit que la case
+    int radius_y = (int)round(cell_h_f * 0.4);
+    
     if (radius_x < 1) radius_x = 1;
     if (radius_y < 1) radius_y = 1;
 
@@ -121,13 +126,15 @@ void drawSquare(screen *windows, int x0, int y0, unsigned short int team)
     int y_start = cy - radius_y;
     int y_end   = cy + radius_y;
 
-    /* clamp to drawable area (inside margins) */
-    if (x_start < ml) x_start = ml;
-    if (y_start < mt) y_start = mt;
-    if (x_end >= ml + drawable_w) x_end = ml + drawable_w - 1;
-    if (y_end >= mt + drawable_h) y_end = mt + drawable_h - 1;
+    /* clamp */
+    if (x_start < 0) x_start = 0;
+    if (y_start < 0) y_start = 0;
+    if (x_end >= (int)windows->width) x_end = windows->width - 1;
+    if (y_end >= (int)windows->height) y_end = windows->height - 1;
 
     int color = teamColor(team);
+    
+    // Dessin carré simple (pour l'instant)
     for (int i = x_start; i <= x_end; i++)
     {
         for (int j = y_start; j <= y_end; j++)
