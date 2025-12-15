@@ -182,6 +182,20 @@ int generate_moves(game *g, MoveCandidate *moves, int player, int depth, int tt_
     }
 
     qsort(moves, count, sizeof(MoveCandidate), compare_moves);
+
+    // --- BEAM SEARCH (LIMITATION DE LARGEUR) ---
+    // C'est ici qu'on force la profondeur 10.
+    // On ne garde que les meilleurs coups pour éviter l'explosion exponentielle.
+    
+    int beam_width = 12; // Garder les 12 meilleurs coups seulement
+    
+    // On peut être plus large près de la racine et plus strict en profondeur
+    // Ex: if (depth > 4) beam_width = 8; 
+
+    if (count > beam_width) {
+        count = beam_width;
+    }
+
     return count;
 }
 
