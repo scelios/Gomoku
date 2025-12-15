@@ -15,6 +15,12 @@
 // --- PROJECT LIBS ---
 #include "../../lib/MLX42/include/MLX42/MLX42.h"
 
+// --- CONSTANTES TT ---
+#define TT_SIZE (1 << 20) // ~1 Million d'entrées (Power of 2 pour rapidité)
+#define TT_EXACT 0
+#define TT_LOWERBOUND 1   // Alpha cutoff
+#define TT_UPPERBOUND 2   // Beta cutoff
+
 // --- CONSTANTES DE JEU & PERFORMANCE ---
 #define WIDTH 818
 #define HEIGHT 818
@@ -56,7 +62,6 @@
 // --- POIDS DES SCORES ---
 // Ces valeurs déterminent la personnalité de l'IA.
 // Elles sont très espacées (puissances de 10) pour que Minimax priorise nettement.
-
 #define WIN_SCORE       100000000 // Victoire immédiate (5 alignés ou 10 captures)
 #define OPEN_FOUR       10000000  // 4 alignés ouverts des deux côtés (Victoire imparable au prochain tour sauf capture)
 #define CLOSED_FOUR     100000    // 4 alignés bloqués d'un côté (Force l'adversaire à bloquer)
@@ -107,6 +112,7 @@ typedef struct game
     int     iaTurn;
     bool    game_over;
     timer   ia_timer;
+    uint64_t current_hash;
 } game;
 
 typedef struct both
@@ -123,6 +129,15 @@ typedef struct {
     int prev_score[3];      // Les scores heuristiques avant le coup
     int prev_captures[3];   // Les compteurs de capture avant le coup
 } MoveUndo;
+
+// --- STRUCTURE TT ---
+typedef struct {
+    uint64_t key;   // Zobrist Hash pour vérifier les collisions
+    int depth;      // Profondeur de la recherche stockée
+    int value;      // Score stocké
+    int flag;       // Type de score (Exact, Upper, Lower)
+    int best_move;  // Le meilleur coup trouvé pour cette position
+} TTEntry;
 
 // --- PROTOTYPES ---
 
@@ -165,6 +180,7 @@ int     evaluate_board(game *g, int player);
 int     get_point_score(game *g, int x, int y, int player);
 
 // ai.c
+void    init_zobrist();
 void    makeIaMove(game *gameData, screen *windows);
 void    apply_move(game *g, int idx, int player, MoveUndo *undo);
 void    undo_move(game *g, int player, MoveUndo *undo);

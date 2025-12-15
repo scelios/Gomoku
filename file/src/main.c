@@ -51,6 +51,8 @@ bool initialized(void *args, screen *windows, game *gameData)
     gameData->score[P1] = 0;
     gameData->score[P2] = 0;
 
+    gameData->current_hash = 0;
+
     return true;
 }
 
@@ -156,6 +158,7 @@ int main(int argc, char **argv)
     void *args;
     screen windows;
     game gameData;
+    init_zobrist();
 
     if (!checkArgs(argc, argv, &args))
         return (EXIT_FAILURE);

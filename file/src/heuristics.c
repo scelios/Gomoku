@@ -1,14 +1,5 @@
 #include "../include/gomoku.h"
 
-// --- Poids des scores (Rappel) ---
-// Assurez-vous que ces valeurs sont bien dans gomoku.h ou ici
-#define WIN_SCORE 100000000
-#define OPEN_FOUR 10000000
-#define CLOSED_FOUR 100000
-#define OPEN_THREE 100000
-#define CLOSED_THREE 1000
-#define OPEN_TWO 100
-
 // Helper pour évaluer une séquence
 static int evaluate_sequence(int consecutive, int open_ends) {
     if (consecutive >= 5) return WIN_SCORE;
