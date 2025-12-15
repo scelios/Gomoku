@@ -284,12 +284,10 @@ void undo_move(game *g, int player, MoveUndo *undo) {
 
 // --- MOTEUR ALPHA-BETA ---
 
-// --- MOTEUR PVS (Principal Variation Search) ---
-
 int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int ia_player, clock_t start_time) {
     debug_node_count++;
 
-    // 1. TT PROBE (Lecture Mémoire)
+    // 1. TT PROBE (Lecture)
     int alpha_orig = alpha; 
     TTEntry *entry = tt_probe(g->current_hash);
     
@@ -312,13 +310,12 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
     if ((clock() - start_time) * 1000 / CLOCKS_PER_SEC > TIME_LIMIT_MS) return -2;
 
     int current_eval = evaluate_board(g, ia_player);
-    // Condition de fin
     if (depth == 0 || abs(current_eval) > WIN_SCORE / 2) return current_eval;
 
     MoveCandidate moves[MAX_BOARD];
     int current_player = maximizingPlayer ? ia_player : ((ia_player == P1) ? P2 : P1);
 
-    // Récupérer le coup suggéré par la TT pour le tri
+    // MOVE ORDERING AVEC TT
     int tt_move = (entry != NULL) ? entry->best_move : -1; 
     
     int move_count = generate_moves(g, moves, current_player, depth, tt_move);
@@ -326,6 +323,9 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
 
     int best_val = maximizingPlayer ? INT_MIN : INT_MAX;
     int best_move_this_node = -1; 
+    
+    // Unused var for now
+    // int move_causing_cutoff = -1; 
 
     for (int i = 0; i < move_count; i++) {
         MoveUndo undo;
@@ -333,45 +333,11 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
 
         apply_move(g, idx, current_player, &undo);
         
-        int val;
-
-        // --- LOGIQUE PVS (C'est ici que ça change) ---
+        int val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
         
-        if (i == 0) {
-            // A. PREMIER COUP (PV-Node) : Recherche Complète
-            // On suppose que c'est le meilleur grâce au tri, on cherche avec fenêtre pleine.
-            val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
-        } 
-        else {
-            // B. AUTRES COUPS : Recherche à Fenêtre Nulle (Null Window Search)
-            // On parie que ces coups sont MOINS BONS que le premier.
-            // On ferme la fenêtre au maximum pour vérifier très vite.
-            
-            if (maximizingPlayer) {
-                // On cherche : est-ce que ce coup > alpha ? Fenêtre [alpha, alpha+1]
-                val = minimax(g, depth - 1, alpha, alpha + 1, !maximizingPlayer, ia_player, start_time);
-                
-                // Si le pari est perdu (val > alpha), c'est une "Recherche Ratée" (Fail High).
-                // Ce coup est en fait intéressant, il faut le recalculer précisement.
-                if (val > alpha && val < beta) {
-                    val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
-                }
-            } else {
-                // Minimizing : On cherche : est-ce que ce coup < beta ? Fenêtre [beta-1, beta]
-                val = minimax(g, depth - 1, beta - 1, beta, !maximizingPlayer, ia_player, start_time);
-                
-                // Si le pari est perdu (val < beta), le coup est dangereux pour nous.
-                // On recalcule précisement.
-                if (val < beta && val > alpha) {
-                    val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
-                }
-            }
-        }
-        // ---------------------------------------------
-
         undo_move(g, current_player, &undo);
 
-        if (val == -2) return -2; // Timeout propagate
+        if (val == -2) return -2;
 
         if (maximizingPlayer) {
             if (val > best_val) {
@@ -387,6 +353,10 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
                 }
                 history_heuristic[idx] += (depth * depth);
                 debug_cutoff_count++;
+                
+                #ifdef DEBUG_VERBOSE
+                if (depth >= 4) printf("[CUTOFF Beta] Depth %d. Move %d. Val %d\n", depth, idx, val);
+                #endif
                 break;
             }
         } else {
@@ -403,16 +373,24 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
                 }
                 history_heuristic[idx] += (depth * depth);
                 debug_cutoff_count++;
+
+                #ifdef DEBUG_VERBOSE
+                if (depth >= 4) printf("[CUTOFF Alpha] Depth %d. Move %d. Val %d\n", depth, idx, val);
+                #endif
                 break; 
             }
         }
     }
 
-    // 2. TT SAVE (Écriture Mémoire)
+    // 2. TT SAVE (Écriture)
     int flag;
-    if (best_val <= alpha_orig) flag = TT_UPPERBOUND; 
-    else if (best_val >= beta) flag = TT_LOWERBOUND;
-    else flag = TT_EXACT;
+    if (best_val <= alpha_orig) {
+        flag = TT_UPPERBOUND; 
+    } else if (best_val >= beta) {
+        flag = TT_LOWERBOUND;
+    } else {
+        flag = TT_EXACT;
+    }
     
     tt_save(g->current_hash, depth, best_val, flag, best_move_this_node);
 
