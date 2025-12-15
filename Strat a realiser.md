@@ -1,51 +1,38 @@
-omment franchir le dernier kilomètre (Depth 8 -> Depth 10) ?
+Voici les 3 axes d'amélioration "State of the Art" pour la suite :
+Stratégie A : Le Module VCF (Victory by Continuous Four) - Priorité Haute
 
-Vous êtes actuellement bloqué à la fin de la profondeur 8 ou au début de la 10. Pour garantir le Depth 10 en 0.5s, il faut être encore plus agressif sur l'élagage.
+C'est le seul moyen d'atteindre Depth 20+.
 
-Voici mes 3 propositions d'optimisation, de la plus simple à la plus complexe.
-A. Dynamic Beam Width (Le réglage fin)
+    Le constat : Parfois, une victoire nécessite une série de 15 attaques forcées. Votre Beam Search à Depth 10 ne la verra pas (ou la coupera).
 
-Actuellement, vous gardez probablement 12 coups partout (beam_width = 12). Mais à la profondeur 8, a-t-on vraiment besoin de regarder les 12 meilleures réponses ? Souvent, seules les 2 ou 3 meilleures comptent.
+    La solution : Avant de lancer Minimax, on lance un "Solver VCF".
 
-Proposition : Réduire la largeur du faisceau à mesure qu'on descend en profondeur.
+        Il ne regarde que : "Je pose, ça fait 4. Il pare. Je pose, ça fait 4..."
 
-    Depth 1-2 : Largeur 12 (On reste ouvert aux possibilités stratégiques).
+        Il va tout droit. S'il trouve une victoire, on joue le coup immédiatement.
 
-    Depth 3-6 : Largeur 8.
+        Temps de calcul : ~1ms pour une profondeur 30.
 
-    Depth 7+ : Largeur 4 ou 5 (On se concentre sur la tactique pure).
+    Impact : L'IA devient impitoyable sur les finitions.
 
-Dans generate_moves :
-C
+Stratégie B : Amélioration de l'Évaluation (Heuristique Positionnelle) - Priorité Moyenne
 
-int beam_width = 12;
-if (depth > 4) beam_width = 8;
-if (depth > 6) beam_width = 5;
+Actuellement, votre IA compte les alignements (3, 4, 5). C'est très tactique.
 
-if (count > beam_width) count = beam_width;
+    Le problème : Entre deux coups qui ne créent pas d'alignement immédiat, elle a du mal à choisir le "meilleur positionnellement" (contrôle du centre, intersection de lignes potentielles).
 
-Gain espéré : Cela divise par 2 ou 3 le nombre de nœuds finaux, ce qui devrait suffire pour finir la Depth 10.
-B. Late Move Reduction (LMR)
+    La solution : Ajouter des bonus positionnels dans evaluate_board ou evaluate_sequence.
 
-C'est une technique standard des moteurs d'échecs. L'idée : Si un coup est trié tardivement (ex: c'est le 5ème ou 6ème coup généré) et qu'il n'est pas une capture ou une menace directe (Check), il est probablement mauvais. L'action : On le recherche avec une profondeur réduite (ex: depth - 2 au lieu de depth - 1).
+        Bonus pour les pierres connectées en "V" (intersections).
 
-    Si le coup s'avère mauvais (99% des cas) : On a gagné énormément de temps.
+        Bonus pour le contrôle du centre (déjà un peu fait dans le tri).
 
-    Si le coup s'avère bon malgré la réduction : On le re-vérifie à pleine profondeur.
+        Bonus pour bloquer les lignes potentielles adverses avant qu'elles ne deviennent des 3.
 
-C. Le Module VCF (Le "Vrai" Depth 20)
+Stratégie C : "Opening Book" (Livre d'Ouverture) - Priorité Facile
 
-Je reviens à la charge avec cette solution car c'est la "Secret Sauce" du Gomoku. Même si vous atteignez Depth 10 avec le Beam Search, l'IA risque de rater une victoire forcée en 15 coups (Depth 15) qui nécessite une séquence précise. Le VCF est un module qui ne regarde que les coups d'attaque (4, ou 3-libre). Comme le facteur de branchement est de 1 (l'adversaire doit répondre), il explore jusqu'à Depth 20 ou 30 quasi instantanément.
-Ma recommandation immédiate
+    Le constat : Les 3 ou 4 premiers coups du Gomoku sont théoriques. Les recalculer à chaque fois est inutile.
 
-Pour valider votre objectif "Depth 10 en 0.5s" rapidement sans réécrire l'architecture :
+    La solution : Coder en dur (Hardcode) les 3 premiers coups optimaux (ex: Pro règle, Long Pro, etc.) ou utiliser un petit fichier de hashs précalculés.
 
-Implémentez le "Dynamic Beam Width" (Proposition A).
-
-Modifiez simplement generate_moves dans ai.c pour réduire le beam_width quand depth est élevé. Essayez :
-C
-
-int beam_width = 10; // Base un peu plus stricte
-if (depth >= 4) beam_width = 6; // Très sélectif en profondeur
-
-Avec ce réglage, vous devriez voir apparaître Depth 10 complete dans vos logs lors du prochain test.
+    Impact : Gain de temps de 0.5s au début, et assurance de ne pas tomber dans un piège d'ouverture connu.

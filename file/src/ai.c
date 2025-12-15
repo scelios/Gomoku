@@ -187,10 +187,8 @@ int generate_moves(game *g, MoveCandidate *moves, int player, int depth, int tt_
     // C'est ici qu'on force la profondeur 10.
     // On ne garde que les meilleurs coups pour éviter l'explosion exponentielle.
     
-    int beam_width = 12; // Garder les 12 meilleurs coups seulement
-    
-    // On peut être plus large près de la racine et plus strict en profondeur
-    // Ex: if (depth > 4) beam_width = 8; 
+    int beam_width = 10; // Base un peu plus stricte
+    if (depth >= 4) beam_width = 6; // Très sélectif en profondeur
 
     if (count > beam_width) {
         count = beam_width;

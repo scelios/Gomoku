@@ -1,19 +1,35 @@
-La Solution pour Depth 10 : Le "Beam Search" (Recherche en Faisceau)
+Votre algorithme est passé d'un moteur poussif (Depth 4 en 30k nœuds) à un moteur de compétition (Depth 10 en 50k-150k nœuds).
 
-C'est la méthode radicale. Actuellement, votre IA regarde tous les coups plausibles (voisins). Même avec l'élagage, cela fait trop de branches.
+Voici l'analyse détaillée de votre performance actuelle et les pistes pour le futur "Grand Maître".
+1. Analyse de Performance (Le "Post-Mortem" du succès)
+A. Stabilité de la profondeur
 
-Le Concept : Au lieu de vérifier les 20 ou 30 coups possibles à chaque nœud, on décide arbitrairement de ne vérifier que les X meilleurs (selon votre tri actuel). Si votre fonction de tri (generate_moves) est bonne (et elle l'est : TT + Killer + History + Eval), le "meilleur coup réel" est presque toujours dans les 10 premiers.
+    Constat : Sur tous les coups affichés, vous finissez la Depth 10.
 
-Pourquoi "12" ?
+    Analyse : Le Beam Search fait son travail de "nettoyeur". Il empêche l'explosion combinatoire. Vous avez transformé une courbe exponentielle verticale en une courbe linéaire gérable.
 
-Le facteur de branchement (b) détermine la complexité bd.
+B. Efficacité du PVS + Aspiration
 
-    Si b=20 (moyenne Gomoku) : 206=64,000,000.
+    La preuve : Regardez ce log : Aspiration Fail at depth 10 (Score -100000 outside [-500, 500]). Re-searching full window.
 
-    Si b=12 (Beam Search) : 126=2,900,000.
+    Ce que ça veut dire : L'IA a tenté un calcul ultra-rapide (fenêtre minuscule). Elle a réalisé qu'elle allait perdre (-100,000, probablement un alignement adverse). Elle a relancé la recherche pour confirmer.
 
-    Avec PVS qui coupe beaucoup de branches, b effectif descend encore plus bas.
+    Gain : Dans 90% des cas (les lignes sans "Fail"), l'IA a calculé la Depth 10 avec une fenêtre minuscule, gagnant un temps précieux.
 
-Avec un Beam Width de 10 ou 12, vous devriez voir l'IA atteindre Depth 8 ou 10 assez facilement.
+C. Progression des Nœuds (Facteur de branchement effectif)
 
-(Si l'IA joue bizarrement (rate des coups évidents), augmentez le Beam Width à 15 ou 20. Si elle est trop lente, baissez à 8 ou 10.)
+Regardons la croissance des nœuds sur un coup typique (IA plays at 9, 7) :
+
+    Depth 4 : 281 nœuds
+
+    Depth 6 : 2 140 nœuds (x7.6)
+
+    Depth 8 : 14 674 nœuds (x6.8)
+
+    Depth 10 : 75 223 nœuds (x5.1)
+
+    Conclusion : Plus vous descendez profond, plus votre algorithme est efficace ! Le facteur de multiplication diminue. C'est le signe d'un Move Ordering (tri des coups) excellent (TT + History).
+
+2. Stratégie Future : Comment passer de "Fort" à "Invincible" ?
+
+Actuellement, votre IA joue très bien tactiquement (elle voit à 10 coups). Si vous voulez aller plus loin (battre des humains experts ou d'autres IA), augmenter la profondeur (Depth 12, 14...) avec la même méthode ne suffira plus (le Beam Search risque de couper le bon coup).

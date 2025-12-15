@@ -1,60 +1,82 @@
-Aspiration Windows
-A. Le Concept
+Votre algorithme est passé d'un moteur poussif (Depth 4 en 30k nœuds) à un moteur de compétition (Depth 10 en 50k-150k nœuds).
 
-Dans un algorithme Iterative Deepening (approfondissement itératif), on calcule successivement Profondeur 2, puis 4, puis 6, etc. On observe une propriété statistique forte : Le score d'une position change rarement de manière drastique d'une profondeur à l'autre. Si à la profondeur 4, vous avez un avantage de +500 points, il est très probable qu'à la profondeur 6, votre avantage soit compris entre +450 et +550.
-B. L'Objectif
+Voici l'analyse détaillée de votre performance actuelle et les pistes pour le futur "Grand Maître".
+1. Analyse de Performance (Le "Post-Mortem" du succès)
+A. Stabilité de la profondeur
 
-L'algorithme Alpha-Beta est d'autant plus rapide que la fenêtre [alpha, beta] est petite.
+    Constat : Sur tous les coups affichés, vous finissez la Depth 10.
 
-    Alpha-Beta standard : Cherche entre [-Infini, +Infini]. C'est lent car il faut explorer beaucoup pour réduire cette fenêtre.
+    Analyse : Le Beam Search fait son travail de "nettoyeur". Il empêche l'explosion combinatoire. Vous avez transformé une courbe exponentielle verticale en une courbe linéaire gérable.
 
-    Aspiration Windows : Cherche entre [Score_Precedent - 50, Score_Precedent + 50]. C'est ultra-rapide car la fenêtre est minuscule, provoquant des cutoffs (élagages) massifs quasi immédiatement.
+B. Efficacité du PVS + Aspiration
 
-C. Fonctionnement Détailé
+    La preuve : Regardez ce log : Aspiration Fail at depth 10 (Score -100000 outside [-500, 500]). Re-searching full window.
 
-    Prédiction : On prend le score de la profondeur précédente (prev_score).
+    Ce que ça veut dire : L'IA a tenté un calcul ultra-rapide (fenêtre minuscule). Elle a réalisé qu'elle allait perdre (-100,000, probablement un alignement adverse). Elle a relancé la recherche pour confirmer.
 
-    Fenêtre : On définit une fenêtre d'aspiration (ex: window = 500).
+    Gain : Dans 90% des cas (les lignes sans "Fail"), l'IA a calculé la Depth 10 avec une fenêtre minuscule, gagnant un temps précieux.
 
-        alpha = prev_score - window
+C. Progression des Nœuds (Facteur de branchement effectif)
 
-        beta = prev_score + window
+Regardons la croissance des nœuds sur un coup typique (IA plays at 9, 7) :
 
-    Recherche Optimiste : On lance Minimax avec cette petite fenêtre.
+    Depth 4 : 281 nœuds
 
-        Cas 1 (Succès) : Le score retourné est dans la fenêtre (ex: 520). C'est le vrai score ! On a gagné beaucoup de temps.
+    Depth 6 : 2 140 nœuds (x7.6)
 
-        Cas 2 (Fail Low) : Le score retourné est ≤alpha. Cela veut dire que la situation est pire que prévu (l'adversaire a trouvé une défense géniale qu'on n'avait pas vue à D-2). Le score retourné (ex: 450) n'est pas précis, c'est juste une borne supérieure.
+    Depth 8 : 14 674 nœuds (x6.8)
 
-        Cas 3 (Fail High) : Le score retourné est ≥beta. La situation est meilleure que prévu (on a trouvé une attaque géniale). Le score (ex: 550) n'est qu'une borne inférieure.
+    Depth 10 : 75 223 nœuds (x5.1)
 
-    Le Re-Search (Filet de sécurité) : Si on tombe dans le Cas 2 ou 3, on a "raté". On est obligé de recommencer la recherche à cette profondeur avec une fenêtre complète [-Infini, +Infini] (ou élargie) pour trouver la vraie valeur exacte.
+    Conclusion : Plus vous descendez profond, plus votre algorithme est efficace ! Le facteur de multiplication diminue. C'est le signe d'un Move Ordering (tri des coups) excellent (TT + History).
 
-D. Pourquoi ça marche ?
+2. Stratégie Future : Comment passer de "Fort" à "Invincible" ?
 
-Même si on doit parfois recommencer la recherche (ce qui coûte du temps), statistiquement, la recherche réussit du premier coup dans plus de 90% des cas. Le temps gagné par la fenêtre réduite compense largement les rares cas où l'on doit recalculer.
-E. Paramétrage (La taille de la fenêtre)
+Actuellement, votre IA joue très bien tactiquement (elle voit à 10 coups). Si vous voulez aller plus loin (battre des humains experts ou d'autres IA), augmenter la profondeur (Depth 12, 14...) avec la même méthode ne suffira plus (le Beam Search risque de couper le bon coup).
 
-    Trop petite (ex: 10) : Beaucoup de "Fails", on passe son temps à recalculer. Perte de performance.
+Voici les 3 axes d'amélioration "State of the Art" pour la suite :
+Stratégie A : Le Module VCF (Victory by Continuous Four) - Priorité Haute
 
-    Trop grande (ex: 10000) : Peu de "Fails", mais la fenêtre est si large qu'elle ne coupe plus grand-chose. On revient à un Alpha-Beta classique.
+C'est le seul moyen d'atteindre Depth 20+.
 
-    Idéal Gomoku : Autour de 50 (pour un score positionnel) ou 500 (si vos scores de menaces sont élevés). Dans votre code, j'ai mis 500 car vos valeurs de heuristiques semblent assez grandes.
+    Le constat : Parfois, une victoire nécessite une série de 15 attaques forcées. Votre Beam Search à Depth 10 ne la verra pas (ou la coupera).
 
+    La solution : Avant de lancer Minimax, on lance un "Solver VCF".
 
-C'est le jour et la nuit. Vous venez de franchir un cap majeur.
-1. Analyse Comparative : Le "Saut Quantique"
+        Il ne regarde que : "Je pose, ça fait 4. Il pare. Je pose, ça fait 4..."
 
-Comparons les chiffres bruts entre la version précédente (PVS seul) et la version actuelle (PVS + Beam Search + Aspiration).
-Métrique	Avant (PVS seul)	Maintenant (PVS + Beam + Aspi)	Constat
-Depth 2	~150 - 300 nœuds	35 - 50 nœuds	Division par 6. Le Beam Search élimine tout le "bruit" inutile dès le départ.
-Depth 4	~5 000 - 10 000 nœuds	100 - 900 nœuds	Division par 20. L'arbre ne s'élargit plus exponentiellement.
-Depth 6	~250 000 nœuds	1 500 - 11 000 nœuds	Division par 50. C'est colossal. Là où l'algo "rame" avant, il traverse la profondeur 6 comme si de rien n'était.
-Depth 8	Timeout (Inatteignable)	30k - 160k nœuds (ATTEINT)	Objectif Depth 8 validé. Vous avez gagné 2 niveaux de profondeur pleins.
-Depth 10	Non tenté	Timeout en cours de route	Vous êtes à la porte du Depth 10. L'algo commence à calculer la profondeur 10 mais le temps (0.5s) coupe avant la fin.
+        Il va tout droit. S'il trouve une victoire, on joue le coup immédiatement.
 
-Analyse des "Aspiration Fail" : Vous voyez des lignes comme : Aspiration Fail at depth 6 (Score 100000 outside [199500, 200500]).
+        Temps de calcul : ~1ms pour une profondeur 30.
 
-    C'est une bonne nouvelle : Cela signifie que la fenêtre réduite fonctionne. L'algo a tenté un calcul rapide, a réalisé que la situation a changé (le score a chuté de 200k à 100k, sans doute une menace adverse détectée tardivement), et a relancé la recherche (Re-searching full window).
+    Impact : L'IA devient impitoyable sur les finitions.
 
-    Le mécanisme de sécurité fonctionne parfaitement.
+Stratégie B : Amélioration de l'Évaluation (Heuristique Positionnelle) - Priorité Moyenne
+
+Actuellement, votre IA compte les alignements (3, 4, 5). C'est très tactique.
+
+    Le problème : Entre deux coups qui ne créent pas d'alignement immédiat, elle a du mal à choisir le "meilleur positionnellement" (contrôle du centre, intersection de lignes potentielles).
+
+    La solution : Ajouter des bonus positionnels dans evaluate_board ou evaluate_sequence.
+
+        Bonus pour les pierres connectées en "V" (intersections).
+
+        Bonus pour le contrôle du centre (déjà un peu fait dans le tri).
+
+        Bonus pour bloquer les lignes potentielles adverses avant qu'elles ne deviennent des 3.
+
+Stratégie C : "Opening Book" (Livre d'Ouverture) - Priorité Facile
+
+    Le constat : Les 3 ou 4 premiers coups du Gomoku sont théoriques. Les recalculer à chaque fois est inutile.
+
+    La solution : Coder en dur (Hardcode) les 3 premiers coups optimaux (ex: Pro règle, Long Pro, etc.) ou utiliser un petit fichier de hashs précalculés.
+
+    Impact : Gain de temps de 0.5s au début, et assurance de ne pas tomber dans un piège d'ouverture connu.
+
+Ma Conclusion
+
+Pour l'instant, NE TOUCHEZ A RIEN. Le code est stable, performant et remplit l'objectif (Depth 10, <0.5s).
+
+Si vous devez présenter le projet ou le rendre : C'est fini. Le rapport performance/complexité est optimal.
+
+Si vous voulez continuer pour le plaisir ou la compétition : commencez par le module VCF. C'est le défi algorithmique le plus intéressant après le Minimax.
