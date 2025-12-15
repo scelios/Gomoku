@@ -456,64 +456,112 @@ void makeIaMove(game *gameData, screen *windows) {
          }
     }
 
-    // --- ITERATIVE DEEPENING ---
+    // --- ITERATIVE DEEPENING AVEC ASPIRATION WINDOWS ---
+    // On stocke le score de la profondeur précédente pour prédire le futur
+    int prev_score = 0; 
+
     for (int depth = 2; depth <= MAX_DEPTH; depth += 2) {
         
-        int alpha = INT_MIN;
-        int beta = INT_MAX;
-        int current_best_idx = -1;
-        int current_best_score = INT_MIN;
+        // Préparation de la fenêtre d'aspiration
+        int alpha_start = INT_MIN;
+        int beta_start = INT_MAX;
+        int window = 500; // Largeur de la fenêtre (à ajuster, 500 est standard pour Gomoku)
 
-        int previous_best_move = best_move_idx;
+        // À partir de profondeur 4, on tente de deviner le score
+        if (depth > 2) {
+            alpha_start = prev_score - window;
+            beta_start = prev_score + window;
+        }
 
+        // Boucle de "Retry" : Si la fenêtre échoue, on recommence avec l'infini
+        // false au départ, true tant qu'on doit chercher
+        bool need_research = true; 
+        
+        // Sauvegarde des coups pour ne pas regénérer en cas de retry
         MoveCandidate moves[MAX_BOARD];
+        int previous_best_move = best_move_idx;
         int count = generate_moves(gameData, moves, ia_player, depth, previous_best_move);
 
-        if (best_move_idx == -1 && count > 0) {
-            best_move_idx = moves[0].index; 
-        }
-
+        // Fallback premier coup
+        if (best_move_idx == -1 && count > 0) best_move_idx = moves[0].index;
         if (count == 0) return;
 
-        bool time_out = false;
-        game working_game = *gameData; 
+        while (need_research) {
+            // Par défaut, on suppose qu'on réussira du premier coup, on ne recommencera pas
+            need_research = false; 
 
-        for (int i = 0; i < count; i++) {
-            int idx = moves[i].index;
-            MoveUndo undo;
+            int alpha = alpha_start;
+            int beta = beta_start;
+            int current_best_idx = -1;
+            int current_best_score = INT_MIN;
+            
+            bool time_out = false;
+            game working_game = *gameData; 
 
-            apply_move(&working_game, idx, ia_player, &undo);
-            int val = minimax(&working_game, depth - 1, alpha, beta, false, ia_player, start);
-            undo_move(&working_game, ia_player, &undo);
+            for (int i = 0; i < count; i++) {
+                int idx = moves[i].index;
+                MoveUndo undo;
 
-            if (val == -2) { 
-                time_out = true;
-                break; 
+                apply_move(&working_game, idx, ia_player, &undo);
+                
+                // Appel PVS (qui utilise alpha/beta)
+                int val = minimax(&working_game, depth - 1, alpha, beta, false, ia_player, start);
+                
+                undo_move(&working_game, ia_player, &undo);
+
+                if (val == -2) { 
+                    time_out = true;
+                    break; 
+                }
+
+                if (val > current_best_score) {
+                    current_best_score = val;
+                    current_best_idx = idx;
+                }
+                
+                // Mise à jour dynamique d'alpha (classique)
+                if (val > alpha) alpha = val;
             }
 
-            if (val > current_best_score) {
-                current_best_score = val;
-                current_best_idx = idx;
+            // --- GESTION DU TIMEOUT ---
+            if (time_out) {
+                #ifdef DEBUG
+                    printf("Timeout at depth %d. Keeping best move from depth %d.\n", depth, depth-2);
+                #endif
+                goto end_search; // On sort de tout
             }
-            if (val > alpha) alpha = val;
-        }
 
-        if (time_out) {
-            #ifdef DEBUG
-                printf("Timeout at depth %d. Keeping best move from depth %d.\n", depth, depth-2);
-            #endif
-            break; 
-        } else {
+            // --- GESTION ASPIRATION FAILURE (Le cœur du système) ---
+            // Si le score est hors de la fenêtre, notre prédiction était mauvaise.
+            if (depth > 2 && (current_best_score <= alpha_start || current_best_score >= beta_start)) {
+                #ifdef DEBUG
+                    printf("Aspiration Fail at depth %d (Score %d outside [%d, %d]). Re-searching full window.\n", 
+                           depth, current_best_score, alpha_start, beta_start);
+                #endif
+                
+                // On élargit à l'infini pour être sûr de trouver le vrai score
+                alpha_start = INT_MIN;
+                beta_start = INT_MAX;
+                need_research = true; // On relance la boucle while
+                continue; 
+            }
+
+            // Si on arrive ici, le score est valide ou on a fini le re-search
             best_move_idx = current_best_idx;
+            prev_score = current_best_score; // On mémorise pour la prochaine profondeur
+
             #ifdef DEBUG
                 printf("Depth %d complete. Best: %d. Nodes: %lld, Cutoffs: %lld.\n", 
                     depth, current_best_score, debug_node_count, debug_cutoff_count);
             #endif
-            if (current_best_score > WIN_SCORE / 2) break;
-        }
-        
+            
+            if (current_best_score > WIN_SCORE / 2) goto end_search;
+        } // Fin while(retry)
+
         if ((clock() - start) * 1000 / CLOCKS_PER_SEC > TIME_LIMIT_MS) break;
     }
+
+    end_search:;
 
 play_move:
     if (best_move_idx != -1) {

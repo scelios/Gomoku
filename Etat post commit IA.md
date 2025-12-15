@@ -1,43 +1,60 @@
-Documentation Technique : Principal Variation Search (PVS)
+Aspiration Windows
+A. Le Concept
 
-Voici la documentation que vous m'avez demandée pour comprendre ce qui se passe sous le capot.
-A. Objectif Fondamental
+Dans un algorithme Iterative Deepening (approfondissement itératif), on calcule successivement Profondeur 2, puis 4, puis 6, etc. On observe une propriété statistique forte : Le score d'une position change rarement de manière drastique d'une profondeur à l'autre. Si à la profondeur 4, vous avez un avantage de +500 points, il est très probable qu'à la profondeur 6, votre avantage soit compris entre +450 et +550.
+B. L'Objectif
 
-L'objectif du PVS est de prouver qu'un coup est mauvais le plus vite possible. Dans un arbre de jeu bien trié, le premier coup examiné est le meilleur (le coup "Principal"). Tous les autres coups sont des pertes de temps. Le PVS cherche à dépenser un minimum de CPU sur ces "autres coups" en faisant une vérification sommaire plutôt qu'un calcul complet.
-B. La Différence Drastique (Alpha-Beta vs PVS)
-Caractéristique	Alpha-Beta Classique	PVS (NegaScout)
-Philosophie	"Je calcule tout précisément jusqu'à preuve du contraire."	"Je fais confiance au 1er coup, je survole les autres."
-Fenêtre de recherche	Toujours [alpha, beta] (Large).	
+L'algorithme Alpha-Beta est d'autant plus rapide que la fenêtre [alpha, beta] est petite.
 
-1er coup : [alpha, beta]
+    Alpha-Beta standard : Cherche entre [-Infini, +Infini]. C'est lent car il faut explorer beaucoup pour réduire cette fenêtre.
 
-Autres : [alpha, alpha+1] (Nulle).
-Coût des nœuds frères	Cher. Chaque nœud peut explorer beaucoup de sous-nœuds.	Très bon marché. La fenêtre nulle force des cutoffs immédiats.
-Risque	Aucun (mais lent).	Devoir recalculer (Re-search) si le tri était mauvais.
-C. Les Gains Concrets
+    Aspiration Windows : Cherche entre [Score_Precedent - 50, Score_Precedent + 50]. C'est ultra-rapide car la fenêtre est minuscule, provoquant des cutoffs (élagages) massifs quasi immédiatement.
 
-    Réduction des Nœuds : Sur un arbre parfaitement trié, PVS peut réduire le nombre de nœuds visités de 30% à 50% par rapport à un Alpha-Beta standard.
+C. Fonctionnement Détailé
 
-    Profondeur : Cette économie permet souvent de gagner +1 à +2 de profondeur supplémentaire dans le même temps imparti.
+    Prédiction : On prend le score de la profondeur précédente (prev_score).
 
-    Synergie : PVS ne fonctionne que si vous avez une bonne Transposition Table et un bon Move Ordering (ce que vous avez fait juste avant). Sans cela, il passerait son temps à faire des "Re-search" (recalculs), ce qui le rendrait plus lent que l'Alpha-Beta.
+    Fenêtre : On définit une fenêtre d'aspiration (ex: window = 500).
 
-D. Détails de l'Implémentation (Comment ça marche ?)
+        alpha = prev_score - window
 
-La logique repose sur le concept de Null Window Search (Recherche à fenêtre nulle).
+        beta = prev_score + window
 
-    L'Hypothèse : On assume que le premier coup moves[0] est le meilleur. On récupère son score exact (disons 100). Notre fenêtre devient [100, beta].
+    Recherche Optimiste : On lance Minimax avec cette petite fenêtre.
 
-    Le Test Rapide : Pour le coup suivant moves[1], on ne veut pas savoir s'il vaut 80 ou 90 (ce qui est inférieur à 100). On veut juste savoir : "Est-il capable de battre 100 ?".
+        Cas 1 (Succès) : Le score retourné est dans la fenêtre (ex: 520). C'est le vrai score ! On a gagné beaucoup de temps.
 
-    La Fenêtre Nulle : On appelle minimax avec alpha=100 et beta=101.
+        Cas 2 (Fail Low) : Le score retourné est ≤alpha. Cela veut dire que la situation est pire que prévu (l'adversaire a trouvé une défense géniale qu'on n'avait pas vue à D-2). Le score retourné (ex: 450) n'est pas précis, c'est juste une borne supérieure.
 
-        Comme alpha et beta sont collés, il est impossible pour l'algorithme de trouver une valeur "entre les deux".
+        Cas 3 (Fail High) : Le score retourné est ≥beta. La situation est meilleure que prévu (on a trouvé une attaque géniale). Le score (ex: 550) n'est qu'une borne inférieure.
 
-        Il doit répondre par OUI (Fail High, score >= 101) ou NON (Fail Low, score <= 100).
+    Le Re-Search (Filet de sécurité) : Si on tombe dans le Cas 2 ou 3, on a "raté". On est obligé de recommencer la recherche à cette profondeur avec une fenêtre complète [-Infini, +Infini] (ou élargie) pour trouver la vraie valeur exacte.
 
-    Le Verdict :
+D. Pourquoi ça marche ?
 
-        Si NON (90% des cas) : Le coup est mauvais. On l'écarte instantanément. On a économisé le calcul de ses sous-branches complexes.
+Même si on doit parfois recommencer la recherche (ce qui coûte du temps), statistiquement, la recherche réussit du premier coup dans plus de 90% des cas. Le temps gagné par la fenêtre réduite compense largement les rares cas où l'on doit recalculer.
+E. Paramétrage (La taille de la fenêtre)
 
-        Si OUI (Oups, le coup est génial) : Notre tri s'est trompé. On doit relancer une recherche normale [100, beta] pour connaître la vraie valeur de ce coup surprise.
+    Trop petite (ex: 10) : Beaucoup de "Fails", on passe son temps à recalculer. Perte de performance.
+
+    Trop grande (ex: 10000) : Peu de "Fails", mais la fenêtre est si large qu'elle ne coupe plus grand-chose. On revient à un Alpha-Beta classique.
+
+    Idéal Gomoku : Autour de 50 (pour un score positionnel) ou 500 (si vos scores de menaces sont élevés). Dans votre code, j'ai mis 500 car vos valeurs de heuristiques semblent assez grandes.
+
+
+C'est le jour et la nuit. Vous venez de franchir un cap majeur.
+1. Analyse Comparative : Le "Saut Quantique"
+
+Comparons les chiffres bruts entre la version précédente (PVS seul) et la version actuelle (PVS + Beam Search + Aspiration).
+Métrique	Avant (PVS seul)	Maintenant (PVS + Beam + Aspi)	Constat
+Depth 2	~150 - 300 nœuds	35 - 50 nœuds	Division par 6. Le Beam Search élimine tout le "bruit" inutile dès le départ.
+Depth 4	~5 000 - 10 000 nœuds	100 - 900 nœuds	Division par 20. L'arbre ne s'élargit plus exponentiellement.
+Depth 6	~250 000 nœuds	1 500 - 11 000 nœuds	Division par 50. C'est colossal. Là où l'algo "rame" avant, il traverse la profondeur 6 comme si de rien n'était.
+Depth 8	Timeout (Inatteignable)	30k - 160k nœuds (ATTEINT)	Objectif Depth 8 validé. Vous avez gagné 2 niveaux de profondeur pleins.
+Depth 10	Non tenté	Timeout en cours de route	Vous êtes à la porte du Depth 10. L'algo commence à calculer la profondeur 10 mais le temps (0.5s) coupe avant la fin.
+
+Analyse des "Aspiration Fail" : Vous voyez des lignes comme : Aspiration Fail at depth 6 (Score 100000 outside [199500, 200500]).
+
+    C'est une bonne nouvelle : Cela signifie que la fenêtre réduite fonctionne. L'algo a tenté un calcul rapide, a réalisé que la situation a changé (le score a chuté de 200k à 100k, sans doute une menace adverse détectée tardivement), et a relancé la recherche (Re-searching full window).
+
+    Le mécanisme de sécurité fonctionne parfaitement.
