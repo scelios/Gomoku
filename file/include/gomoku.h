@@ -13,7 +13,7 @@
 #include <limits.h>
 
 // --- PROJECT LIBS ---
-#include "../MLX42/include/MLX42/MLX42.h"
+#include "../../lib/MLX42/include/MLX42/MLX42.h"
 
 // --- CONSTANTES DE JEU & PERFORMANCE ---
 #define WIDTH 818
