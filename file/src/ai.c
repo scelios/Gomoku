@@ -355,25 +355,51 @@ int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int 
             val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
         } 
         else {
-            // B. AUTRES COUPS : Recherche à Fenêtre Nulle (Null Window Search)
-            // On parie que ces coups sont MOINS BONS que le premier.
-            // On ferme la fenêtre au maximum pour vérifier très vite.
+            // B. AUTRES COUPS : Late Move Reduction (LMR) + Null Window Search
             
-            if (maximizingPlayer) {
-                // On cherche : est-ce que ce coup > alpha ? Fenêtre [alpha, alpha+1]
-                val = minimax(g, depth - 1, alpha, alpha + 1, !maximizingPlayer, ia_player, start_time);
+            int reduction = 0;
+
+            // Conditions pour activer LMR :
+            // 1. Profondeur suffisante (ne pas réduire près des feuilles)
+            // 2. On est loin dans la liste (les premiers coups sont les Killers/History)
+            if (depth >= 3 && i >= 4) {
+                reduction = 1;
+                // Si on est très profond et très loin, on réduit plus agressivement
+                if (depth > 6 && i > 10) reduction = 2;
                 
-                // Si le pari est perdu (val > alpha), c'est une "Recherche Ratée" (Fail High).
-                // Ce coup est en fait intéressant, il faut le recalculer précisement.
+                // Sécurité : ne pas réduire en dessous de 0
+                if (depth - 1 - reduction < 0) reduction = depth - 1;
+            }
+
+            if (maximizingPlayer) {
+                // 1. Recherche avec RÉDUCTION (Null Window)
+                // On cherche : est-ce que ce coup > alpha ?
+                val = minimax(g, depth - 1 - reduction, alpha, alpha + 1, !maximizingPlayer, ia_player, start_time);
+                
+                // 2. Re-search si LMR a échoué (Le coup était meilleur que prévu)
+                // Si val > alpha, cela veut dire que même réduit, ce coup est intéressant.
+                // On doit vérifier si c'était un faux positif dû à la faible profondeur.
+                if (reduction > 0 && val > alpha) {
+                    val = minimax(g, depth - 1, alpha, alpha + 1, !maximizingPlayer, ia_player, start_time);
+                }
+
+                // 3. Re-search si PVS a échoué (Fail High classique)
+                // Le coup est confirmé meilleur que alpha, on a besoin de sa valeur exacte.
                 if (val > alpha && val < beta) {
                     val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
                 }
             } else {
-                // Minimizing : On cherche : est-ce que ce coup < beta ? Fenêtre [beta-1, beta]
-                val = minimax(g, depth - 1, beta - 1, beta, !maximizingPlayer, ia_player, start_time);
+                // Minimizing : On cherche : est-ce que ce coup < beta ?
                 
-                // Si le pari est perdu (val < beta), le coup est dangereux pour nous.
-                // On recalcule précisement.
+                // 1. Recherche avec RÉDUCTION
+                val = minimax(g, depth - 1 - reduction, beta - 1, beta, !maximizingPlayer, ia_player, start_time);
+                
+                // 2. Re-search si LMR a échoué (Le coup est dangereux pour nous)
+                if (reduction > 0 && val < beta) {
+                    val = minimax(g, depth - 1, beta - 1, beta, !maximizingPlayer, ia_player, start_time);
+                }
+
+                // 3. Re-search si PVS a échoué
                 if (val < beta && val > alpha) {
                     val = minimax(g, depth - 1, alpha, beta, !maximizingPlayer, ia_player, start_time);
                 }
