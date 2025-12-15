@@ -1,79 +1,43 @@
-1. La Mémoire : Transposition Table (TT) & Zobrist Hashing
+Documentation Technique : Principal Variation Search (PVS)
 
-C'est le changement structurel le plus profond.
+Voici la documentation que vous m'avez demandée pour comprendre ce qui se passe sous le capot.
+A. Objectif Fondamental
 
-    AVANT (Amnésique)
+L'objectif du PVS est de prouver qu'un coup est mauvais le plus vite possible. Dans un arbre de jeu bien trié, le premier coup examiné est le meilleur (le coup "Principal"). Tous les autres coups sont des pertes de temps. Le PVS cherche à dépenser un minimum de CPU sur ces "autres coups" en faisant une vérification sommaire plutôt qu'un calcul complet.
+B. La Différence Drastique (Alpha-Beta vs PVS)
+Caractéristique	Alpha-Beta Classique	PVS (NegaScout)
+Philosophie	"Je calcule tout précisément jusqu'à preuve du contraire."	"Je fais confiance au 1er coup, je survole les autres."
+Fenêtre de recherche	Toujours [alpha, beta] (Large).	
 
-        Fonctionnement : L'IA calculait une position. Si elle retombait exactement sur la même configuration de pierres 2 secondes plus tard (via une autre séquence de coups, ex: A puis B vs B puis A), elle recalculait tout depuis zéro.
+1er coup : [alpha, beta]
 
-        Coût : Gaspillage massif de temps CPU sur des doublons.
+Autres : [alpha, alpha+1] (Nulle).
+Coût des nœuds frères	Cher. Chaque nœud peut explorer beaucoup de sous-nœuds.	Très bon marché. La fenêtre nulle force des cutoffs immédiats.
+Risque	Aucun (mais lent).	Devoir recalculer (Re-search) si le tri était mauvais.
+C. Les Gains Concrets
 
-        Analogie : Vous cherchez la définition d'un mot dans le dictionnaire. 5 minutes plus tard, vous cherchez le même mot, mais vous avez oublié la page, donc vous recommencez à chercher depuis 'A'.
+    Réduction des Nœuds : Sur un arbre parfaitement trié, PVS peut réduire le nombre de nœuds visités de 30% à 50% par rapport à un Alpha-Beta standard.
 
-    MAINTENANT (Mémoire Photographique)
+    Profondeur : Cette économie permet souvent de gagner +1 à +2 de profondeur supplémentaire dans le même temps imparti.
 
-        Fonctionnement :
+    Synergie : PVS ne fonctionne que si vous avez une bonne Transposition Table et un bon Move Ordering (ce que vous avez fait juste avant). Sans cela, il passerait son temps à faire des "Re-search" (recalculs), ce qui le rendrait plus lent que l'Alpha-Beta.
 
-            Chaque case a un code-barres aléatoire (Zobrist Key).
+D. Détails de l'Implémentation (Comment ça marche ?)
 
-            Le plateau a une "Empreinte Digitale" unique (somme XOR de tous les codes).
+La logique repose sur le concept de Null Window Search (Recherche à fenêtre nulle).
 
-            Quand l'IA arrive sur une position, elle regarde sa Table de Hachage : "Ai-je déjà vu cette empreinte ?".
+    L'Hypothèse : On assume que le premier coup moves[0] est le meilleur. On récupère son score exact (disons 100). Notre fenêtre devient [100, beta].
 
-            Si Oui et que la recherche précédente était assez profonde : elle prend la réponse immédiate (0 calcul).
+    Le Test Rapide : Pour le coup suivant moves[1], on ne veut pas savoir s'il vaut 80 ou 90 (ce qui est inférieur à 100). On veut juste savoir : "Est-il capable de battre 100 ?".
 
-            Si Non : elle calcule et sauvegarde le résultat pour plus tard.
+    La Fenêtre Nulle : On appelle minimax avec alpha=100 et beta=101.
 
-        Gain : Élimine des milliers de branches redondantes. Plus la partie avance, plus les transpositions sont fréquentes.
+        Comme alpha et beta sont collés, il est impossible pour l'algorithme de trouver une valeur "entre les deux".
 
-2. La Hiérarchie : Move Ordering (Killer & History)
+        Il doit répondre par OUI (Fail High, score >= 101) ou NON (Fail Low, score <= 100).
 
-C'est ce qui rend l'algorithme Alpha-Beta efficace. Alpha-Beta ne marche bien que si on teste le meilleur coup en premier.
+    Le Verdict :
 
-    AVANT (Tri Basique)
+        Si NON (90% des cas) : Le coup est mauvais. On l'écarte instantanément. On a économisé le calcul de ses sous-branches complexes.
 
-        Fonctionnement : Les coups étaient triés uniquement par quick_evaluate (une petite analyse tactique immédiate).
-
-        Problème : Si le meilleur coup était un coup purement défensif (sans gain immédiat de points) ou stratégique, il était classé loin dans la liste. L'IA devait calculer tous les mauvais coups avant de trouver le bon et de couper la branche (Cutoff).
-
-        Analogie : Vous cherchez vos clés. Vous cherchez au hasard dans toute la maison avant de regarder dans le bol de l'entrée.
-
-    MAINTENANT (Tri Intelligent)
-
-        Fonctionnement : L'IA teste les coups dans un ordre strict basé sur l'expérience :
-
-            TT Move (Le Joker) : "La dernière fois que j'ai vu cette position, le meilleur coup était X". -> On le joue en 1er. (Succès à 90%).
-
-            Killer Move (Le Tueur) : "À cette profondeur, le coup Y a souvent réfuté l'adversaire ailleurs sur le plateau". -> On le joue en 2ème.
-
-            History (L'Habitué) : "Le coup Z est statistiquement bon depuis le début de la partie".
-
-        Gain : Les "Cutoffs" (arrêts de recherche) arrivent beaucoup plus tôt. On explore moins de "nœuds poubelles".
-
-3. La Vision : Évaluation Locale (O(N) vs O(1))
-
-C'est l'accélérateur brut du moteur.
-
-    AVANT (Vision Tunnel)
-
-        Fonctionnement : Pour savoir si un coup était bon, la fonction get_point_score parcourait toute la ligne, toute la colonne et les deux diagonales complètes (boucles while).
-
-        Coût : O(N) (proportionnel à la taille du plateau). Lent.
-
-        Analogie : Pour vérifier si une tache est propre sur un mur, vous repeignez tout le mur.
-
-    MAINTENANT (Vision Laser)
-
-        Fonctionnement : On sait qu'au Gomoku, poser une pierre n'affecte pas ce qui se passe à 10 cases de là. La nouvelle fonction regarde uniquement 4 cases avant et 4 cases après la pierre posée.
-
-        Coût : O(1) (Temps constant, ultra-rapide).
-
-        Analogie : Vous nettoyez juste la tache.
-
-RÉSUMÉ DU DIFF (Gains Concrets)
-Métrique	        Avant Optimisation	                Après Optimisation	    Gain / Impact
-Vitesse (Nœuds/sec)	~30 000	~250 000	                x8 Vitesse pure
-Profondeur Stable	Depth 4 (limite)	                Depth 6 (solide)	    +2 de Profondeur (énorme en exponentiel)
-Doublons	        Recalculés systématiquement	        Récupérés en mémoire	Économie CPU
-Cutoffs (Élagage)	Tardifs (après calculs inutiles)	Précoces (grâce au tri)	Intelligence de recherche
-
+        Si OUI (Oups, le coup est génial) : Notre tri s'est trompé. On doit relancer une recherche normale [100, beta] pour connaître la vraie valeur de ce coup surprise.
