@@ -1,31 +1,24 @@
-1. Le Beam Search : Est-ce encore utile ?
+Analyse des Logs : Oui, il y a une nette amélioration !
 
-Réponse : OUI, ABSOLUMENT.
+Regardons les chiffres. Avant PVS (Alpha-Beta simple + Eval locale) :
 
-C'est probablement L'ARME ULTIME pour atteindre artificiellement la "Profondeur 10" si l'Alpha-Beta standard (même avec PVS) plafonne à 6 ou 8.
+    Depth 4 coûtait entre 20k et 30k nœuds.
 
-    Le Concept : Au lieu de regarder tous les coups possibles (ou de compter sur l'Alpha-Beta pour les couper), on décide arbitrairement de ne garder que les X meilleurs coups à chaque nœud.
+    Depth 6 était inatteignable (Timeout systématique).
 
-    La différence avec Alpha-Beta : Alpha-Beta peut tout regarder s'il n'a pas de chance. Beam Search garantit qu'il ne regardera jamais plus de X coups.
+Avec PVS (Actuel) :
 
-    Le Risque : Si le coup gagnant est le 6ème meilleur coup apparent et que ton Beam (largeur de faisceau) est de 5, tu perds la partie (l'IA ne le verra jamais). C'est une recherche "risquée" mais ultra-rapide.
+    Depth 4 ne coûte plus que 5k à 10k nœuds. C'est une réduction de x3 à x4 de la taille de l'arbre pour la même profondeur !
 
-Comparatif Stratégique pour ton Objectif
+    Depth 6 est atteint sur les premiers coups (200k - 300k nœuds). C'est la preuve que le moteur est beaucoup plus efficace.
 
-    Beam Search :
+Le problème restant : Dès que le plateau se remplit (plus de voisins, plus de complexité), l'explosion exponentielle reprend le dessus. Vous passez de Depth 6 (réussi) à Depth 4 (timeout) au 3ème coup.
 
-        Type : Heuristique (Brutal).
+Pour atteindre Depth 10 en 0.5s, optimiser ne suffit plus. Il faut couper.
+La Solution pour Depth 10 : Le "Beam Search" (Recherche en Faisceau)
 
-        Gain : Force mathématiquement la profondeur. Si tu limites à 5 coups par nœud, tu iras très profond.
+C'est la méthode radicale. Actuellement, votre IA regarde tous les coups plausibles (voisins). Même avec l'élagage, cela fait trop de branches.
 
-        Sécurité : Risqué (peut rater des tactiques subtiles).
+Le Concept : Au lieu de vérifier les 20 ou 30 coups possibles à chaque nœud, on décide arbitrairement de ne vérifier que les X meilleurs (selon votre tri actuel). Si votre fonction de tri (generate_moves) est bonne (et elle l'est : TT + Killer + History + Eval), le "meilleur coup réel" est presque toujours dans les 10 premiers.
 
-        Recommandation : La roue de secours. Si avec PVS tu bloques encore à Depth 8, active le Beam Search pour forcer le Depth 10.
-
-    VCF (Module spécialisé) :
-
-        Type : Expert.
-
-        Gain : Trouve des mats en 20 coups, mais ne compte pas vraiment comme de la "profondeur Minimax" classique.
-
-        Recommandation : Pour gagner des tournois, pas forcément pour l'objectif "algo depth 10".
+L'Implémentation : C'est extrêmement simple. Il suffit de limiter la variable count dans generate_moves.
