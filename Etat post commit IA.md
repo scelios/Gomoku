@@ -1,128 +1,82 @@
-🚀 Plan d'Amélioration (Du plus simple au changement de paradigme)
+Votre algorithme est passé d'un moteur poussif (Depth 4 en 30k nœuds) à un moteur de compétition (Depth 10 en 50k-150k nœuds).
 
-Pour passer de Depth 6 à Depth 10+ (ou équivalent en intelligence), voici les étapes.
-Étape 1 : Optimisation Critique - Le "Move Ordering" (Gain x10)
+Voici l'analyse détaillée de votre performance actuelle et les pistes pour le futur "Grand Maître".
+1. Analyse de Performance (Le "Post-Mortem" du succès)
+A. Stabilité de la profondeur
 
-C'est l'amélioration la plus rentable. Au lieu de trier par distance au centre, on trie par "potentiel immédiat".
+    Constat : Sur tous les coups affichés, vous finissez la Depth 10.
 
-Concept : Avant de lancer le Minimax récursif, on donne un score rapide à chaque coup candidat :
+    Analyse : Le Beam Search fait son travail de "nettoyeur". Il empêche l'explosion combinatoire. Vous avez transformé une courbe exponentielle verticale en une courbe linéaire gérable.
 
-    Si je joue ici, est-ce que ça fait 5 alignés ? (Score max)
+B. Efficacité du PVS + Aspiration
 
-    Est-ce que ça bloque un 4 adverse ? (Score très haut)
+    La preuve : Regardez ce log : Aspiration Fail at depth 10 (Score -100000 outside [-500, 500]). Re-searching full window.
 
-    Est-ce que ça crée un 3 libre ? (Score moyen)
+    Ce que ça veut dire : L'IA a tenté un calcul ultra-rapide (fenêtre minuscule). Elle a réalisé qu'elle allait perdre (-100,000, probablement un alignement adverse). Elle a relancé la recherche pour confirmer.
 
-Si le premier coup testé est excellent, l'Alpha-Beta peut ignorer 90% des autres coups.
+    Gain : Dans 90% des cas (les lignes sans "Fail"), l'IA a calculé la Depth 10 avec une fenêtre minuscule, gagnant un temps précieux.
 
-# Added !
+C. Progression des Nœuds (Facteur de branchement effectif)
 
-Étape 2 : Réduire la largeur (Beam Search)
+Regardons la croissance des nœuds sur un coup typique (IA plays at 9, 7) :
 
-Au lieu de tester tous les coups voisins (disons 40 coups), on ne garde que les 10 meilleurs selon l'heuristique rapide de l'étape 1.
+    Depth 4 : 281 nœuds
 
-    Risque : Rater un coup de génie très subtil.
+    Depth 6 : 2 140 nœuds (x7.6)
 
-    Avantage : On passe de largeur 40 à largeur 10.
+    Depth 8 : 14 674 nœuds (x6.8)
 
-    106 (1 million) vs 406 (4 milliards). Tu atteindras Depth 10-12 facile.
+    Depth 10 : 75 223 nœuds (x5.1)
 
-Étape 3 : La Table de Transposition (Mémoire)
+    Conclusion : Plus vous descendez profond, plus votre algorithme est efficace ! Le facteur de multiplication diminue. C'est le signe d'un Move Ordering (tri des coups) excellent (TT + History).
 
-Dans le Gomoku, on retombe souvent sur les mêmes configurations (A puis B = B puis A).
+2. Stratégie Future : Comment passer de "Fort" à "Invincible" ?
 
-    On utilise le Zobrist Hashing.
+Actuellement, votre IA joue très bien tactiquement (elle voit à 10 coups). Si vous voulez aller plus loin (battre des humains experts ou d'autres IA), augmenter la profondeur (Depth 12, 14...) avec la même méthode ne suffira plus (le Beam Search risque de couper le bon coup).
 
-    On stocke le score des positions déjà vues dans une Hash Map.
+Voici les 3 axes d'amélioration "State of the Art" pour la suite :
+Stratégie A : Le Module VCF (Victory by Continuous Four) - Priorité Haute
 
-    Si on recroise la position, on renvoie le score stocké instantanément.
+C'est le seul moyen d'atteindre Depth 20+.
 
+    Le constat : Parfois, une victoire nécessite une série de 15 attaques forcées. Votre Beam Search à Depth 10 ne la verra pas (ou la coupera).
 
-🧠 Changement de Paradigme ? (VCF - Victory by Continuous Four)
+    La solution : Avant de lancer Minimax, on lance un "Solver VCF".
 
-Si après ça l'IA est toujours "lente" à trouver les victoires forcées, il existe une technique spécifique au Gomoku : le VCF (Victory by Continuous Four).
+        Il ne regarde que : "Je pose, ça fait 4. Il pare. Je pose, ça fait 4..."
 
-L'IA classique cherche "quel est le meilleur coup global". Le VCF cherche : "Est-ce que j'ai une suite de coups forcés qui mène au mat ?"
+        Il va tout droit. S'il trouve une victoire, on joue le coup immédiatement.
 
-    Je fais un 4 (l'ennemi doit bloquer).
+        Temps de calcul : ~1ms pour une profondeur 30.
 
-    Je fais un autre 4 (il doit bloquer).
+    Impact : L'IA devient impitoyable sur les finitions.
 
-    Je fais un 4 (il doit bloquer).
+Stratégie B : Amélioration de l'Évaluation (Heuristique Positionnelle) - Priorité Moyenne
 
-    Je fais un 5 (Gagné).
+Actuellement, votre IA compte les alignements (3, 4, 5). C'est très tactique.
 
-C'est un arbre de recherche très fin et très profond (peut aller à Depth 20+ facile) car il n'y a quasiment pas de branches (coups forcés).
+    Le problème : Entre deux coups qui ne créent pas d'alignement immédiat, elle a du mal à choisir le "meilleur positionnellement" (contrôle du centre, intersection de lignes potentielles).
 
----
+    La solution : Ajouter des bonus positionnels dans evaluate_board ou evaluate_sequence.
 
-1. Pourquoi la "Symétrie Locale" est un piège ?
+        Bonus pour les pierres connectées en "V" (intersections).
 
-Imaginons que tu poses une pierre X et que tu regardes un rayon de 2 cases autour.
+        Bonus pour le contrôle du centre (déjà un peu fait dans le tri).
 
-Scénario A :
-Plaintext
+        Bonus pour bloquer les lignes potentielles adverses avant qu'elles ne deviennent des 3.
 
-. . . . .
-. O . O .
-. . X . .  <-- Ton coup
-. O . O .
-. . . . .
+Stratégie C : "Opening Book" (Livre d'Ouverture) - Priorité Facile
 
-Ici, c'est parfaitement symétrique. Si tu calcules le score en haut à gauche, tu pourrais théoriquement déduire le score en bas à droite.
+    Le constat : Les 3 ou 4 premiers coups du Gomoku sont théoriques. Les recalculer à chaque fois est inutile.
 
-Scénario B (La réalité du jeu) :
-Plaintext
+    La solution : Coder en dur (Hardcode) les 3 premiers coups optimaux (ex: Pro règle, Long Pro, etc.) ou utiliser un petit fichier de hashs précalculés.
 
-. . . . .
-. A . B .  <-- A est une pierre ennemie, B est vide
-. . X . .
-. . C . .  <-- C est un bord de map
-. . . . .
+    Impact : Gain de temps de 0.5s au début, et assurance de ne pas tomber dans un piège d'ouverture connu.
 
-Pour savoir si la situation est symétrique, l'algorithme doit d'abord lire la case A, puis lire la case opposée (en bas à droite), et les comparer.
+Ma Conclusion
 
-    Si A == Opposé, alors je gagne du temps ? Non, car j'ai déjà dû lire les deux cases pour vérifier l'égalité !
+Pour l'instant, NE TOUCHEZ A RIEN. Le code est stable, performant et remplit l'objectif (Depth 10, <0.5s).
 
-    L'opération de "vérifier si c'est symétrique" prend autant de cycles CPU que de "juste calculer le score".
+Si vous devez présenter le projet ou le rendre : C'est fini. Le rapport performance/complexité est optimal.
 
-Conclusion : Le coût de vérification de la symétrie annule le gain potentiel.
-2. L'optimisation naturelle (On le fait déjà !)
-
-En réalité, l'algorithme "divise déjà par 2" naturellement, non pas par symétrie de position, mais par axe.
-
-Quand l'IA évalue une pierre X, elle ne lance pas 8 rayons (Haut, Bas, Gauche, Droite, 4 diagonales). Elle lance 4 axes :
-
-    Horizontal (Gauche <-> Droite en un seul passage)
-
-    Vertical (Haut <-> Bas en un seul passage)
-
-    Diagonale 1
-
-    Diagonale 2
-
-Elle traite Gauche et Droite ensemble comme une seule ligne. Donc, elle ne fait pas le travail en double.
-3. La VRAIE application de ton idée : Le "Pattern Matching" instantané
-
-Ton intuition est : "Au lieu de scanner case par case, ne peut-on pas reconnaître le motif immédiatement ?"
-
-C'est possible et c'est une optimisation redoutable appelée Table de Pré-calcul (Lookup Table).
-Le principe
-
-Au lieu de faire une boucle for qui regarde case par case (if case[i] == ...), on transforme la ligne locale en un nombre unique (un code) et on regarde le résultat dans un tableau géant pré-rempli.
-
-Exemple concret sur un rayon de 4 cases (9 cases au total) : Imagine une ligne : _ _ O X X _ _ _ _ On peut encoder cela en binaire (00=vide, 01=IA, 10=Ennemi) : 00 00 10 01 01 00 00 00 00
-
-Cela donne un nombre entier (un index). L'IA fait alors simplement :
-C
-
-score = SCORE_TABLE[ index ];
-
-C'est instantané (accès mémoire direct O(1)). Pas de boucles, pas de if, pas de scan.
-Où intervient la symétrie ici ?
-
-C'est DANS la construction de ce tableau SCORE_TABLE que tu utilises la symétrie pour réduire la taille du tableau en mémoire (mais pas le temps de calcul).
-
-    L'index pour O X X donnera le même score que l'index pour X X O.
-
-    Mais pendant le jeu, l'IA se contente de lire la valeur.
+Si vous voulez continuer pour le plaisir ou la compétition : commencez par le module VCF. C'est le défi algorithmique le plus intéressant après le Minimax.

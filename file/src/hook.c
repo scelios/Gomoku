@@ -40,9 +40,9 @@ void cursor(double xpos, double ypos, void *param)
 
 void keyhook(mlx_key_data_t keydata, void *param)
 {
-    both *args = (struct both *)param;
-    screen *windows = args->windows;
-    game *gameData = args->gameData;
+    both *data = (both *)param; // Assure-toi que le cast correspond à ta structure
+    screen *windows = data->windows;
+    game *gameData = data->gameData;
 
     if (keydata.key == MLX_KEY_ESCAPE && keydata.action == MLX_PRESS)
     {
@@ -60,6 +60,16 @@ void keyhook(mlx_key_data_t keydata, void *param)
         #ifdef DEBUG
             printf("IA Mode: %s\n", gameData->iaTurn ? "ON (Player 2)" : "OFF");
         #endif
+    }
+
+    // Ajout de la touche H pour le Hint
+    if (keydata.key == MLX_KEY_H && keydata.action == MLX_PRESS)
+    {
+        printf("🔍 Touche H pressée !\n"); // <--- DEBUG
+        if (!data->gameData->game_over)
+            suggest_move(data->gameData, data->windows, data->gameData->turn);
+        else
+            printf("⚠️ Game Over, pas de hint.\n"); // <--- DEBUG
     }
 }
 
@@ -132,6 +142,7 @@ void mousehook(mouse_key_t button, action_t action, modifier_key_t mods, void *p
                 
                 // 4. Changer de tour
                 gameData->turn = (gameData->turn == P1) ? P2 : P1;
+                gameData->hint_idx = -1; // Effacer le hint après coup joué
                 windows->changed = true;
                 
                 // Reset du timer pour l'IA (si elle doit jouer ensuite)
