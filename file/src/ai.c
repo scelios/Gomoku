@@ -621,44 +621,105 @@ play_move:
 // --- FONCTION D'AIDE AU JOUEUR (HINT) ---
 
 void suggest_move(game *g, screen *s, int player) {
-    // On utilise les générateurs de coups existants
-    MoveCandidate moves[MAX_BOARD];
+    // On utilise la même logique que makeIaMove (Iterative Deepening)
+    // pour trouver le meilleur coup possible en profondeur.
     
-    // On génère les coups pour le joueur demandé (Humain)
-    // Depth 1 pour les heuristiques de tri
-    int count = generate_moves(g, moves, player, 1, -1);
+    clock_t start = clock();
+    int best_move_idx = -1;
+    
+    // On nettoie les heuristiques pour une nouvelle recherche
+    clear_heuristics(); 
 
-    if (count == 0) return;
+    // --- ITERATIVE DEEPENING (Copie adaptée de makeIaMove) ---
+    int prev_score = 0; 
 
-    int best_idx = -1;
-    int best_score = INT_MIN;
-
-    // Simulation Depth 1 : On joue, on évalue, on annule.
-    for (int i = 0; i < count; i++) {
-        int idx = moves[i].index;
-        MoveUndo undo;
-
-        apply_move(g, idx, player, &undo);
+    for (int depth = 2; depth <= MAX_DEPTH; depth += 2) {
         
-        // Évaluation statique du plateau après le coup
-        int score = evaluate_board(g, player);
-        
-        undo_move(g, player, &undo);
+        int alpha_start = INT_MIN;
+        int beta_start = INT_MAX;
+        int window = 500;
 
-        if (score > best_score) {
-            best_score = score;
-            best_idx = idx;
+        if (depth > 2) {
+            alpha_start = prev_score - window;
+            beta_start = prev_score + window;
         }
+
+        bool need_research = true; 
+        
+        MoveCandidate moves[MAX_BOARD];
+        int previous_best_move = best_move_idx;
+        // On génère les coups pour le JOUEUR HUMAIN (player)
+        int count = generate_moves(g, moves, player, depth, previous_best_move);
+
+        if (best_move_idx == -1 && count > 0) best_move_idx = moves[0].index;
+        if (count == 0) return;
+
+        while (need_research) {
+            need_research = false; 
+
+            int alpha = alpha_start;
+            int beta = beta_start;
+            int current_best_idx = -1;
+            int current_best_score = INT_MIN;
+            
+            bool time_out = false;
+            game working_game = *g; // Copie locale pour simuler
+
+            for (int i = 0; i < count; i++) {
+                int idx = moves[i].index;
+                MoveUndo undo;
+
+                apply_move(&working_game, idx, player, &undo);
+                
+                // On appelle minimax en considérant 'player' comme le maximisateur
+                int val = minimax(&working_game, depth - 1, alpha, beta, false, player, start);
+                
+                undo_move(&working_game, player, &undo);
+
+                if (val == -2) { 
+                    time_out = true;
+                    break; 
+                }
+
+                if (val > current_best_score) {
+                    current_best_score = val;
+                    current_best_idx = idx;
+                }
+                
+                if (val > alpha) alpha = val;
+            }
+
+            if (time_out) goto end_search;
+
+            // Aspiration Window Failure Check
+            if (depth > 2 && (current_best_score <= alpha_start || current_best_score >= beta_start)) {
+                alpha_start = INT_MIN;
+                beta_start = INT_MAX;
+                need_research = true;
+                continue; 
+            }
+
+            best_move_idx = current_best_idx;
+            prev_score = current_best_score;
+            
+            if (current_best_score > WIN_SCORE / 2) goto end_search;
+        }
+
+        // On arrête si on dépasse le temps imparti
+        if ((clock() - start) * 1000 / CLOCKS_PER_SEC > TIME_LIMIT_MS) break;
     }
 
-    // Affichage
-    if (best_idx != -1) {
-        // On stocke l'index pour qu'il soit dessiné par la boucle principale
-        g->hint_idx = best_idx;
-        s->changed = true; // On force le rafraîchissement
+    end_search:;
+
+    // Affichage du résultat
+    if (best_move_idx != -1) {
+        g->hint_idx = best_move_idx;
+        s->changed = true;
         
         #ifdef DEBUG
-            printf("Hint proposed at (%d, %d)\n", GET_X(best_idx), GET_Y(best_idx));
+            printf("💡 Smart Hint found at (%d, %d)\n", GET_X(best_move_idx), GET_Y(best_move_idx));
         #endif
+    } else {
+        printf("❌ No hint found.\n");
     }
 }
