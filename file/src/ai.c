@@ -187,8 +187,8 @@ int generate_moves(game *g, MoveCandidate *moves, int player, int depth, int tt_
     // C'est ici qu'on force la profondeur 10.
     // On ne garde que les meilleurs coups pour éviter l'explosion exponentielle.
     
-    int beam_width = 10; // Base un peu plus stricte
-    if (depth >= 4) beam_width = 6; // Très sélectif en profondeur
+    int beam_width = 18; // Base un peu plus stricte
+    if (depth >= 4) beam_width = 10; // Très sélectif en profondeur
 
     if (count > beam_width) {
         count = beam_width;
@@ -295,7 +295,6 @@ void undo_move(game *g, int player, MoveUndo *undo) {
 }
 
 // --- MOTEUR ALPHA-BETA ---
-
 // --- MOTEUR PVS (Principal Variation Search) ---
 
 int minimax(game *g, int depth, int alpha, int beta, bool maximizingPlayer, int ia_player, clock_t start_time) {
@@ -617,4 +616,49 @@ play_move:
 
     clock_t end = clock();
     gameData->ia_timer.elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+}
+
+// --- FONCTION D'AIDE AU JOUEUR (HINT) ---
+
+void suggest_move(game *g, screen *s, int player) {
+    // On utilise les générateurs de coups existants
+    MoveCandidate moves[MAX_BOARD];
+    
+    // On génère les coups pour le joueur demandé (Humain)
+    // Depth 1 pour les heuristiques de tri
+    int count = generate_moves(g, moves, player, 1, -1);
+
+    if (count == 0) return;
+
+    int best_idx = -1;
+    int best_score = INT_MIN;
+
+    // Simulation Depth 1 : On joue, on évalue, on annule.
+    for (int i = 0; i < count; i++) {
+        int idx = moves[i].index;
+        MoveUndo undo;
+
+        apply_move(g, idx, player, &undo);
+        
+        // Évaluation statique du plateau après le coup
+        int score = evaluate_board(g, player);
+        
+        undo_move(g, player, &undo);
+
+        if (score > best_score) {
+            best_score = score;
+            best_idx = idx;
+        }
+    }
+
+    // Affichage
+    if (best_idx != -1) {
+        // On stocke l'index pour qu'il soit dessiné par la boucle principale
+        g->hint_idx = best_idx;
+        s->changed = true; // On force le rafraîchissement
+        
+        #ifdef DEBUG
+            printf("Hint proposed at (%d, %d)\n", GET_X(best_idx), GET_Y(best_idx));
+        #endif
+    }
 }

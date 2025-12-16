@@ -26,10 +26,10 @@
 #define HEIGHT 818
 
 // Bouton Reset
-#define BTN_X 430
-#define BTN_Y 10
+#define BTN_X 700
+#define BTN_Y 3
 #define BTN_W 80
-#define BTN_H 30
+#define BTN_H 25
 
 // Marges Graphiques (Réintégrées)
 #define BOARD_MARGIN_LEFT 30
@@ -45,7 +45,7 @@
 
 // Limites de temps et de profondeur
 #define MAX_DEPTH 10
-#define TIME_LIMIT_MS 450 // On garde une marge de sécurité (50ms) pour l'affichage
+#define TIME_LIMIT_MS 498 // On garde une marge de sécurité (50ms) pour l'affichage
 
 // Valeurs des cases (Optimisé pour lecture rapide)
 #define EMPTY 0
@@ -113,6 +113,7 @@ typedef struct game
     bool    game_over;
     timer   ia_timer;
     uint64_t current_hash;
+    int     hint_idx; // <--- AJOUTER CECI
 } game;
 
 typedef struct both
@@ -185,5 +186,6 @@ void    makeIaMove(game *gameData, screen *windows);
 void    apply_move(game *g, int idx, int player, MoveUndo *undo);
 void    undo_move(game *g, int player, MoveUndo *undo);
 int     quick_evaluate_move(game *g, int idx, int player);
+void    suggest_move(game *g, screen *s, int player);
 
 #endif
