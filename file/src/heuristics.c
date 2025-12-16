@@ -5,10 +5,10 @@
 static const int SCORE_TABLE[6][3] = {
     // [Consecutive][OpenEnds]
     {0, 0, 0},             // 0 pierres
-    {1, 10, 15},           // 1 pierre
-    {10, 50, 200},         // 2 pierres
-    {100, 1200, 8000},     // 3 pierres -> BOOSTÉ (5000 -> 8000) : Un Open 3 est presque aussi effrayant qu'un 4
-    {6000, 12000, 50000},  // 4 pierres -> Ajusté pour garder la hiérarchie
+    {1, 10, 15},           // 1 pierre  (Fermé, 1 bout, 2 bouts)
+    {10, 50, 200},          // 2 pierres
+    {100, 1000, 5000},      // 3 pierres
+    {5000, 10000, 50000},   // 4 pierres
     {WIN_SCORE, WIN_SCORE, WIN_SCORE} // 5 pierres
 };
 
@@ -44,20 +44,6 @@ int get_point_score(game *g, int x, int y, int player) {
                 consecutive++;
             } else if (cell == EMPTY) {
                 open_ends++;
-                
-                // --- Détection des trous (Broken Lines) ---
-                // On regarde une case plus loin (i+1) pour voir si la menace continue
-                int tx2 = x - (i + 1) * dx;
-                int ty2 = y - (i + 1) * dy;
-                if (IS_VALID(tx2, ty2) && g->board[GET_INDEX(tx2, ty2)] == player) {
-                    // On a trouvé une pierre après le trou ! (ex: X X . X)
-                    // On ajoute un bonus immédiat car c'est une menace cachée
-                    
-                    if (consecutive == 1) total_score += 10;      // Forme : X . X
-                    else if (consecutive == 2) total_score += 800; // Forme : X X . X -> BOOSTÉ (150 -> 800)
-                    else if (consecutive >= 3) total_score += 6000;// Forme : X X X . X -> BOOSTÉ (4000 -> 6000)
-                }
-                
                 break; // Fin de la séquence par une case vide
             } else {
                 break; // Bloqué par l'adversaire
@@ -76,17 +62,6 @@ int get_point_score(game *g, int x, int y, int player) {
                 consecutive++;
             } else if (cell == EMPTY) {
                 open_ends++;
-
-                // --- Détection des trous ---
-                int tx2 = x + (i + 1) * dx;
-                int ty2 = y + (i + 1) * dy;
-                if (IS_VALID(tx2, ty2) && g->board[GET_INDEX(tx2, ty2)] == player) {
-                    // Bonus symétrique
-                    if (consecutive == 1) total_score += 10;
-                    else if (consecutive == 2) total_score += 800; // BOOSTÉ
-                    else if (consecutive >= 3) total_score += 6000; // BOOSTÉ
-                }
-
                 break;
             } else {
                 break;
