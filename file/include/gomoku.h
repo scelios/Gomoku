@@ -78,6 +78,18 @@
 
 // --- STRUCTURES ---
 
+// Tables de score pré-calculées (à ajuster selon vos préférences)
+// C'est beaucoup plus rapide que des 'if' en cascade
+static const int SCORE_TABLE[6][3] = {
+    // [Consecutive][OpenEnds]
+    {0, 0, 0},             // 0 pierres
+    {1, 10, 15},           // 1 pierre  (Fermé, 1 bout, 2 bouts)
+    {10, 50, 200},          // 2 pierres
+    {100, 1000, 5000},      // 3 pierres
+    {5000, 10000, 50000},   // 4 pierres
+    {WIN_SCORE, WIN_SCORE, WIN_SCORE} // 5 pierres
+};
+
 typedef struct screen
 {
     mlx_t       *mlx;
