@@ -170,4 +170,8 @@ void    apply_move(game *g, int idx, int player, MoveUndo *undo);
 void    undo_move(game *g, int player, MoveUndo *undo);
 int     quick_evaluate_move(game *g, int idx, int player);
 
+// bonus.c
+void    flashbang(screen *windows);
+void    openBrainRot();
+
 #endif
