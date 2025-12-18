@@ -1,17 +1,15 @@
 NAME        := gomoku
 
 # --- Directories ---
-# Architecture définie : src/file/*.c et src/include
 SRC_DIR     := file/src
 INC_DIR     := file/include
 OBJ_DIR     := obj
 LIB_DIR     := lib
 MLX_DIR     := $(LIB_DIR)/MLX42
+MONGOOSE_DIR := $(LIB_DIR)/mongoose
 
 # --- Compiler & Flags ---
 CC          := cc
-# Flags demandés (-Ofast -g -DDEBUG=1). 
-# J'ajoute -MMD -MP pour la gestion automatique des dépendances (.h)
 CFLAGS      := -Ofast -g -DDEBUG=1 -MMD -MP
 CFLAGS      += -I$(INC_DIR) -I$(MLX_DIR)/include -I/usr/include/cjson
 
@@ -19,21 +17,16 @@ CFLAGS      += -I$(INC_DIR) -I$(MLX_DIR)/include -I/usr/include/cjson
 # CFLAGS    += -Wextra -Wall -Werror
 
 # --- Libraries ---
-# Détection basique pour Linux vs Mac (Optional, based on your previous config)
 LGLFW_PATH  := /usr/lib/x86_64-linux-gnu
-LIBS        := $(MLX_DIR)/build/libmlx42.a -ldl -lglfw -pthread -lm -lcurl -lcjson -L$(LGLFW_PATH)
+LIBS        := $(MLX_DIR)/build/libmlx42.a $(MONGOOSE_DIR)/mongoose.o -ldl -lglfw -pthread -lm -lcurl -lcjson -L$(LGLFW_PATH)
 
 # --- Sources & Objects ---
-# Trouve tous les .c dans src/file
 SRCS        := $(shell find $(SRC_DIR) -iname "*.c")
-
-# Crée la liste des objets dans obj/ en gardant la structure ou en aplanissant
-# Ici, on remplace le chemin SRC_DIR par OBJ_DIR
 OBJS        := $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 
 # --- Rules ---
 
-all: libmlx $(NAME)
+all: libmlx mongoose $(NAME)
 
 # Linkage final
 $(NAME): $(OBJS)
@@ -53,7 +46,15 @@ libmlx:
 	fi
 	@cmake $(MLX_DIR) -B $(MLX_DIR)/build && make -C $(MLX_DIR)/build -j4
 
-# Docker rule (conservée)
+# Gestion de Mongoose
+mongoose:
+	@if [ ! -d "$(MONGOOSE_DIR)" ]; then \
+		git clone https://github.com/cesanta/mongoose.git $(MONGOOSE_DIR); \
+	fi
+	@cd $(MONGOOSE_DIR) && $(CC) -c mongoose.c -I. -o mongoose.o
+	@printf "✅ Mongoose compiled\n"
+
+# Docker rule
 docker: all
 	@cp $(NAME) ./file/$(NAME) 2>/dev/null || :
 	docker compose up --build -d
@@ -65,8 +66,8 @@ clean:
 
 fclean: clean
 	@rm -f $(NAME)
-	@rm -rf $(MLX_DIR)/build
-	@printf "🗑️  Removed executable: $(NAME).\n"
+	@rm -rf $(MLX_DIR)/build $(MONGOOSE_DIR)
+	@printf "🗑️  Removed executable and libs.\n"
 
 re: fclean all
 
@@ -82,4 +83,4 @@ brew:
 # Inclusion des dépendances générées par -MMD
 -include $(OBJS:.o=.d)
 
-.PHONY: all clean fclean re libmlx git brew docker
+.PHONY: all clean fclean re libmlx mongoose git brew docker

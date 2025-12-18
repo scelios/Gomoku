@@ -95,34 +95,35 @@ void gameLoop(void *param)
     screen      *windows = args->windows;
     game        *gameData = args->gameData;
 
-    // Passer gameData au lieu de gameData->board
+    // Process websocket events (non-blocking)
+    if (args->mgr)
+        mg_mgr_poll(args->mgr, 0);
+
     resetScreen(windows, gameData);
-    
     if (windows->changed)
     {
-        // if (windows->resized)
-        // {
         windows->resized = false;
-        // }
-
-        // Gestion du tour IA
+        
+        // IA turn handling
         if (isIaTurn(gameData->iaTurn, gameData->turn) && !gameData->game_over)
         {
             makeIaMove(gameData, windows);
-            gameData->hint_idx = -1; // On efface le hint quand l'IA joue
+            gameData->hint_idx = -1;
             
-            // Après le coup de l'IA, on change de tour et on redraw
             checkVictoryCondition(gameData);
             gameData->turn = (gameData->turn == P1) ? P2 : P1;
-            windows->changed = true; // Forcer le redraw après coup IA
+            windows->changed = true;
+            
+            // ✅ Broadcast IA move to frontend
+            if (args->mgr)
+                broadcast_board_state_external(args->mgr, gameData, windows);
         }
         else
         {
             resetTimer(&gameData->ia_timer);
         }
-
+        
         checkVictoryCondition(gameData);
-        // Note: Le changement de tour Humain se fait généralement dans le mousehook
         windows->changed = false;
     }
 
@@ -134,12 +135,16 @@ void launchGame(game *gameData, screen *windows)
     both args;
     args.windows = windows;
     args.gameData = gameData;
+    args.mgr = NULL;  // Initialiser à NULL
+
+    init_websocket(&args);
 
     // Init MLX
     windows->mlx = mlx_init((int32_t)windows->width, (int32_t)windows->height, "Gomoku IA", true);
     if (!windows->mlx)
     {
         perror("mlx_init failed");
+        cleanup_websocket(&args);
         exit(EXIT_FAILURE);
     }
 
@@ -147,6 +152,7 @@ void launchGame(game *gameData, screen *windows)
     if (mlx_image_to_window(windows->mlx, windows->img, 0, 0) == -1)
     {
         mlx_close_window(windows->mlx);
+        cleanup_websocket(&args);
         puts(mlx_strerror(mlx_errno));
         exit(EXIT_FAILURE);
     }
@@ -161,6 +167,8 @@ void launchGame(game *gameData, screen *windows)
     mlx_key_hook(windows->mlx, &keyhook, &args);
 
     mlx_loop(windows->mlx);
+
+    cleanup_websocket(&args);
     mlx_terminate(windows->mlx);
 }
 

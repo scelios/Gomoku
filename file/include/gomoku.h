@@ -113,14 +113,16 @@ typedef struct game
     bool    game_over;
     timer   ia_timer;
     uint64_t current_hash;
-    int     hint_idx; // <--- AJOUTER CECI
+    int     hint_idx;
 } game;
 
 typedef struct both
 {
-    screen  *windows;
-    game    *gameData;
+    screen          *windows;
+    game            *gameData;
+    struct mg_mgr   *mgr;
 } both;
+
 
 // Structure pour stocker ce qu'il faut annuler après un coup
 typedef struct {
@@ -192,5 +194,15 @@ void    suggest_move(game *g, screen *s, int player);
 void    flashbang(screen *windows);
 void    openBrainRot();
 void llmRoast(int *board);
+
+// --- MONGOOSE INCLUDES ---
+#include "mongoose.h"
+
+
+// --- PROTOTYPES WEBSOCKET ---
+void    init_websocket(both *args);
+void    cleanup_websocket(both *args);
+void    websocket_handler(struct mg_connection *c, int ev, void *ev_data);
+void    broadcast_board_state_external(struct mg_mgr *mgr, game *gameData, screen *windows);
 
 #endif
