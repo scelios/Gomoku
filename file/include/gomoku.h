@@ -191,5 +191,6 @@ void    suggest_move(game *g, screen *s, int player);
 // bonus.c
 void    flashbang(screen *windows);
 void    openBrainRot();
+void llmRoast(int *board);
 
 #endif

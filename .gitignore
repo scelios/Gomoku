@@ -45,3 +45,4 @@ Docker_Makefile
 
 # debug information files
 *.dwo
+.env
