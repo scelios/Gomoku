@@ -196,7 +196,7 @@ void    openBrainRot();
 void llmRoast(int *board);
 
 // --- MONGOOSE INCLUDES ---
-#include "mongoose.h"
+#include "../../lib/mongoose/mongoose.h"
 
 
 // --- PROTOTYPES WEBSOCKET ---
